@@ -183,6 +183,49 @@ def test_image_to_image(ref_image_url):
             print(f"响应详情: {response.text}")
         print_separator()
 
+def test_video_generation():
+    print(">>> 5. 正在测试视频生成 (Text-to-Video)...")
+    url = f"{API_BASE}/v1/video/generations"
+    headers = {
+        "Authorization": f"Bearer {SESSION_ID}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "prompt": "一只深红色的猫在跳水",
+        "ratio": "9:16",
+        "stream": False
+    }
+
+    try:
+        print("正在请求生成视频 (这可能需要 1-3 分钟)...")
+        response = requests.post(url, headers=headers, json=payload, timeout=300)
+        response.raise_for_status()
+
+        data = response.json()
+        print(f"HTTP 状态: {response.status_code}")
+        
+        choice = data.get('choices', [{}])[0]
+        message = choice.get('message', {})
+        content = message.get('content', '')
+        videos = message.get('videos', [])
+
+        print(f"返回文本: {content}")
+        if videos:
+            print(f"生成的视频信息 ({len(videos)}个):")
+            for vid_info in videos:
+                print(f" - VID: {vid_info.get('vid')}")
+                print(f" - 封面: {vid_info.get('cover')}")
+                print(f" - URL: {vid_info.get('url') or '生成中...'}")
+        else:
+            print("注意: 响应中暂无直接视频链接，可能正在后台生成，请前往官网查看。")
+            
+        print_separator()
+    except Exception as e:
+        print(f"视频生成测试失败: {e}")
+        if 'response' in locals() and hasattr(response, 'text'):
+            print(f"响应详情: {response.text}")
+        print_separator()
+
 if __name__ == "__main__":
     print("开始运行全功能测试脚本...\n")
 
@@ -197,14 +240,13 @@ if __name__ == "__main__":
     # test_stream_chat()
 
     # 3. 文生图
-    generated_image_url = test_text_to_image()
+    # generated_image_url = test_text_to_image()
 
-    # # 4. 图生图 (如果文生图成功，用生成的图做参考，否则用默认图)
-    # # 为了避免太频繁请求导致风控，稍微等待一下
+    # # 4. 图生图
     # if generated_image_url:
-    #     print("等待 5 秒后继续图生图测试...")
-    #     time.sleep(5)
+    #     test_image_to_image(generated_image_url)
     
-    # test_image_to_image(generated_image_url)
+    # 5. 视频生成
+    test_video_generation()
     
-    # print("\n所有测试已完成。")
+    print("\n所有测试已完成。")
