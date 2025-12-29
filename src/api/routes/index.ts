@@ -7,6 +7,7 @@ import video from "./video.ts";
 import ping from "./ping.ts";
 import token from './token.js';
 import models from './models.ts';
+import admin from './admin.ts';
 
 export default [
     {
@@ -27,5 +28,6 @@ export default [
     video,
     ping,
     token,
-    models
+    models,
+    admin
 ];

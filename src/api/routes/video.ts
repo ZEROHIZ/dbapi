@@ -3,6 +3,7 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import Response from '@/lib/response/Response.ts';
 import video from '@/api/controllers/video.ts';
+import AccountManager from '@/lib/account-manager.ts';
 
 interface VideoCompletionRequestBody {
     prompt: string;
@@ -29,10 +30,19 @@ export default {
                 .validate('body.stream', _.isBoolean)
                 .validate('headers.authorization', _.isString);
 
-            const tokens = video.tokenSplit(request.headers.authorization);
-            const token = _.sample(tokens);
-            if (!token) {
-                throw new Error('无效的Authorization Token');
+            const authHeader = request.headers.authorization || "";
+            let token: string;
+            let isPooled = false;
+
+            if (authHeader.includes("pooled") || authHeader.length < 20) {
+                token = await AccountManager.acquireToken();
+                isPooled = true;
+            } else {
+                const tokens = video.tokenSplit(authHeader);
+                token = _.sample(tokens) || "";
+                if (!token) {
+                    throw new Error('无效的Authorization Token');
+                }
             }
 
             const {
@@ -52,19 +62,29 @@ export default {
                 image
             };
 
-            if (stream) {
-                const s = await video.createVideoCompletionStream(videoParams, token, assistantId);
-                return new Response(s, {
-                    type: "text/event-stream",
-                    headers: {
-                        "Cache-Control": "no-cache, no-transform",
-                        "Connection": "keep-alive",
-                        "X-Accel-Buffering": "no"
+            try {
+                if (stream) {
+                    const s = await video.createVideoCompletionStream(videoParams, token, assistantId);
+                    if (isPooled) {
+                        s.on('end', () => AccountManager.releaseToken(token));
+                        s.on('error', () => AccountManager.releaseToken(token));
                     }
-                });
-            } else {
-                const result = await video.createVideoCompletion(videoParams, token, assistantId);
-                return new Response(result);
+                    return new Response(s, {
+                        type: "text/event-stream",
+                        headers: {
+                            "Cache-Control": "no-cache, no-transform",
+                            "Connection": "keep-alive",
+                            "X-Accel-Buffering": "no"
+                        }
+                    });
+                } else {
+                    const result = await video.createVideoCompletion(videoParams, token, assistantId);
+                    if (isPooled) AccountManager.releaseToken(token);
+                    return new Response(result);
+                }
+            } catch (err) {
+                if (isPooled) AccountManager.releaseToken(token);
+                throw err;
             }
         }
     }

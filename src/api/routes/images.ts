@@ -3,6 +3,7 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import Response from '@/lib/response/Response.ts';
 import images from '@/api/controllers/images.ts';
+import AccountManager from '@/lib/account-manager.ts';
 
 // 定义图片生成请求体的类型（可选，增强类型提示）
 interface ImageCompletionRequestBody {
@@ -36,10 +37,19 @@ export default {
                 .validate('body.image', (v) => _.isUndefined(v) || _.isString(v)); // 参考图为可选字符串
 
             // 2. 处理Token
-            const tokens = images.tokenSplit(request.headers.authorization);
-            const token = _.sample(tokens);
-            if (!token) {
-                throw new Error('无效的Authorization Token');
+            const authHeader = request.headers.authorization || "";
+            let token: string;
+            let isPooled = false;
+
+            if (authHeader.includes("pooled") || authHeader.length < 20) {
+                token = await AccountManager.acquireToken();
+                isPooled = true;
+            } else {
+                const tokens = images.tokenSplit(authHeader);
+                token = _.sample(tokens) || "";
+                if (!token) {
+                    throw new Error('无效的Authorization Token');
+                }
             }
 
             // 3. 解构参数：新增image字段
@@ -65,19 +75,29 @@ export default {
             };
 
             // 6. 调用生成方法（传递referenceImage）
-            if (stream) {
-                const s = await images.createImageCompletionStream(imageParams, token, assistantId);
-                return new Response(s, {
-                    type: "text/event-stream",
-                    headers: {
-                        "Cache-Control": "no-cache, no-transform",
-                        "Connection": "keep-alive",
-                        "X-Accel-Buffering": "no"
+            try {
+                if (stream) {
+                    const s = await images.createImageCompletionStream(imageParams, token, assistantId);
+                    if (isPooled) {
+                        s.on('end', () => AccountManager.releaseToken(token));
+                        s.on('error', () => AccountManager.releaseToken(token));
                     }
-                });
-            } else {
-                const result = await images.createImageCompletion(imageParams, token, assistantId);
-                return new Response(result);
+                    return new Response(s, {
+                        type: "text/event-stream",
+                        headers: {
+                            "Cache-Control": "no-cache, no-transform",
+                            "Connection": "keep-alive",
+                            "X-Accel-Buffering": "no"
+                        }
+                    });
+                } else {
+                    const result = await images.createImageCompletion(imageParams, token, assistantId);
+                    if (isPooled) AccountManager.releaseToken(token);
+                    return new Response(result);
+                }
+            } catch (err) {
+                if (isPooled) AccountManager.releaseToken(token);
+                throw err;
             }
         }
     }
