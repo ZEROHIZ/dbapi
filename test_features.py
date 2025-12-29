@@ -18,7 +18,6 @@ def encode_image(image_path):
         return None
     with open(image_path, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-        # 简单的 MIME 类型推断
         if image_path.lower().endswith('.png'):
             mime = "image/png"
         elif image_path.lower().endswith('.jpg') or image_path.lower().endswith('.jpeg'):
@@ -35,7 +34,6 @@ def save_result(data, prefix="result"):
         print("❌ 没有返回数据")
         return
 
-    # 尝试解析标准 OpenAI 格式
     if 'data' in data and isinstance(data['data'], list):
         item = data['data'][0]
         url = item.get('url')
@@ -43,14 +41,12 @@ def save_result(data, prefix="result"):
         
         if url:
             print(f"✅ 生成成功！URL: {url}")
-            # 也可以选择自动下载，这里只打印
         elif b64:
             filename = f"{prefix}_{int(time.time())}.png"
             with open(filename, "wb") as f:
                 f.write(base64.b64decode(b64))
             print(f"✅ 生成成功！图片已保存为: {filename}")
     else:
-        # 兼容其他返回格式
         print("⚠️ 原始返回数据:", json.dumps(data, indent=2, ensure_ascii=False))
 
 def test_text_to_image():
@@ -58,13 +54,12 @@ def test_text_to_image():
     prompt = input("请输入提示词 (默认: 一只赛博朋克风格的猫): ") or "一只赛博朋克风格的猫"
     
     payload = {
-        "model": "doubao-image-pro",
         "prompt": prompt,
         "stream": False
     }
     
     try:
-        print("⏳ 正在请求中，请排队等待...")
+        print("⏳ 正在请求中...")
         response = requests.post(f"{BASE_URL}/images/generations", headers=HEADERS, json=payload)
         response.raise_for_status()
         save_result(response.json(), "t2i")
@@ -83,14 +78,13 @@ def test_image_to_image():
     prompt = input("请输入修改提示词 (默认: 变成卡通风格): ") or "变成卡通风格"
 
     payload = {
-        "model": "doubao-image-pro",
         "prompt": prompt,
-        "image": base64_img, # 关键参数
+        "image": base64_img,
         "stream": False
     }
 
     try:
-        print("⏳ 正在请求中（上传图片较慢），请等待...")
+        print("⏳ 正在请求中...")
         response = requests.post(f"{BASE_URL}/images/generations", headers=HEADERS, json=payload)
         response.raise_for_status()
         save_result(response.json(), "i2i")
@@ -109,14 +103,14 @@ def test_image_to_video():
     prompt = input("请输入视频动态描述 (默认: 镜头缓缓推进): ") or "镜头缓缓推进"
 
     payload = {
-        "model": "doubao-video-high",
         "prompt": prompt,
-        "image": base64_img, # 关键参数
-        "stream": False
+        "image": base64_img,
+        "stream": False,
+        "ratio": "16:9" 
     }
 
     try:
-        print("⏳ 正在请求中（视频生成耗时较长），请耐心等待...")
+        print("⏳ 正在请求中（视频生成耗时较长）...")
         response = requests.post(f"{BASE_URL}/video/generations", headers=HEADERS, json=payload)
         response.raise_for_status()
         save_result(response.json(), "i2v")
@@ -126,9 +120,9 @@ def test_image_to_video():
 
 def main():
     while True:
-        print("\n=========================")
+        print("\n==========================")
         print("Doubao API 功能测试菜单")
-        print("=========================")
+        print("==========================")
         print("1. 文生图 (Text -> Image)")
         print("2. 图生图 (Image -> Image)")
         print("3. 图生视频 (Image -> Video)")

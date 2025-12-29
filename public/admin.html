@@ -15,7 +15,7 @@
         .status-cooldown { background-color: #ffc107; box-shadow: 0 0 8px #ffc107; }
         .token-text { font-family: monospace; color: #6c757d; font-size: 0.85em; }
         .stats-val { font-size: 1.8rem; font-weight: bold; }
-        .progress { height: 8px; border-radius: 4px; }
+        .usage-badge { font-size: 0.8em; margin-right: 8px; min-width: 80px; display: inline-block; }
         [v-cloak] { display: none; }
     </style>
 </head>
@@ -56,14 +56,18 @@
         </div>
         <div class="col-md-3">
             <div class="card p-3">
-                <div class="text-muted small mb-1">当前队列</div>
-                <div class="stats-val text-primary">{{ stats.queue.current }}</div>
+                <div class="text-muted small mb-1">当前队列 (请求数)</div>
+                <div class="stats-val text-primary">{{ stats.queue }}</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card p-3">
-                <div class="text-muted small mb-1">今日总剩余可用</div>
-                <div class="stats-val text-info">{{ stats.totalRemaining }}</div>
+                <div class="text-muted small mb-1">今日剩余额度 (图/视)</div>
+                <div class="stats-val text-info" style="font-size: 1.4rem">
+                    <i class="bi bi-image"></i> {{ stats.totalRemainingImage }}
+                    <span class="mx-1">/</span>
+                    <i class="bi bi-camera-video"></i> {{ stats.totalRemainingVideo }}
+                </div>
             </div>
         </div>
     </div>
@@ -79,10 +83,10 @@
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>状态</th>
-                                <th>备注名称</th>
-                                <th>今日使用情况</th>
-                                <th>操作</th>
+                                <th style="width: 100px;">状态</th>
+                                <th>账号信息</th>
+                                <th>今日用量 (已用/总额)</th>
+                                <th style="width: 160px;">操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -95,15 +99,24 @@
                                     <div class="fw-bold">{{ acc.name }}</div>
                                     <div class="token-text">{{ acc.token.substring(0, 10) }}...{{ acc.token.slice(-5) }}</div>
                                 </td>
-                                <td style="width: 200px;">
-                                    <div class="d-flex justify-content-between mb-1 small">
-                                        <span>{{ acc.dailyUsage }} / {{ acc.dailyLimit }}</span>
-                                        <span class="text-muted">余 {{ acc.remaining }}</span>
+                                <td>
+                                    <div class="mb-1">
+                                        <i class="bi bi-chat-dots text-secondary me-1" title="对话"></i>
+                                        <span class="text-muted small">
+                                            {{ acc.usageChat }} / {{ acc.limitChat === -1 ? '∞' : acc.limitChat }}
+                                        </span>
                                     </div>
-                                    <div class="progress">
-                                        <div class="progress-bar" 
-                                             :class="acc.dailyUsage >= acc.dailyLimit ? 'bg-danger' : 'bg-success'"
-                                             :style="{width: (acc.dailyUsage / acc.dailyLimit * 100) + '%'}"></div>
+                                    <div class="mb-1">
+                                        <i class="bi bi-image text-primary me-1" title="生图"></i>
+                                        <span class="small" :class="acc.usageImage >= acc.limitImage ? 'text-danger fw-bold' : ''">
+                                            {{ acc.usageImage }} / {{ acc.limitImage }}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <i class="bi bi-camera-video text-danger me-1" title="视频"></i>
+                                        <span class="small" :class="acc.usageVideo >= acc.limitVideo ? 'text-danger fw-bold' : ''">
+                                            {{ acc.usageVideo }} / {{ acc.limitVideo }}
+                                        </span>
                                     </div>
                                 </td>
                                 <td>
@@ -144,10 +157,26 @@
                     <label class="form-label small">备注名</label>
                     <input v-model="newAcc.name" type="text" class="form-control form-control-sm" placeholder="如：账号1">
                 </div>
-                <div class="mb-3">
-                    <label class="form-label small">每日限制次数</label>
-                    <input v-model.number="newAcc.dailyLimit" type="number" class="form-control form-control-sm">
+                
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small"><i class="bi bi-image text-primary"></i> 生图限额</label>
+                        <input v-model.number="newAcc.limitImage" type="number" class="form-control form-control-sm">
+                        <div class="form-text" style="font-size: 0.7em">默认60</div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small"><i class="bi bi-camera-video text-danger"></i> 视频限额</label>
+                        <input v-model.number="newAcc.limitVideo" type="number" class="form-control form-control-sm">
+                        <div class="form-text" style="font-size: 0.7em">默认0</div>
+                    </div>
+                    <div class="col-12">
+                         <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="chatUnlimited" checked disabled>
+                            <label class="form-check-label small" for="chatUnlimited"><i class="bi bi-chat-dots"></i> 对话不限次数</label>
+                        </div>
+                    </div>
                 </div>
+
                 <div class="d-flex gap-2">
                     <button @click="submitAccount" class="btn w-100 btn-sm" :class="editingId ? 'btn-primary' : 'btn-success'">
                         <i class="bi" :class="editingId ? 'bi-save' : 'bi-plus-circle'"></i> {{ editingId ? '保存修改' : '立即添加' }}
@@ -184,11 +213,13 @@
             const stats = ref({
                 totalAccounts: 0, enabledAccounts: 0, 
                 statusCounts: { idle: 0, busy: 0, cooldown: 0 },
-                queue: { current: 0, limit: 0 },
-                totalRemaining: 0
+                queue: 0,
+                totalRemainingChat: 0,
+                totalRemainingImage: 0,
+                totalRemainingVideo: 0
             });
             const settings = ref({ cooldownTime: 10000 });
-            const newAcc = ref({ token: '', name: '', dailyLimit: 100 });
+            const newAcc = ref({ token: '', name: '', limitChat: -1, limitImage: 60, limitVideo: 0 });
             const editingId = ref(null);
 
             const fetchData = async () => {
@@ -211,15 +242,22 @@
                 
                 try {
                     let url = '/admin/accounts';
-                    // 如果是编辑模式，修改 URL
                     if (editingId.value) {
                         url = `/admin/accounts/${editingId.value}`;
                     }
 
+                    // 确保数值正确
+                    const payload = {
+                        ...newAcc.value,
+                        limitChat: -1, // 强制为-1，或者允许用户修改，根据需求这里暂时强制-1
+                        limitImage: parseInt(newAcc.value.limitImage) || 60,
+                        limitVideo: parseInt(newAcc.value.limitVideo) || 0
+                    };
+
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newAcc.value)
+                        body: JSON.stringify(payload)
                     });
 
                     if (!res.ok) {
@@ -227,9 +265,9 @@
                         throw new Error(err.msg || "操作失败");
                     }
 
-                    cancelEdit(); // 重置表单
+                    cancelEdit();
                     fetchData();
-                    // alert(editingId.value ? "修改成功！" : "添加成功！");
+                    if (!editingId.value) alert("添加成功！");
                 } catch (e) {
                     alert("操作失败: " + e.message);
                 }
@@ -240,13 +278,15 @@
                 newAcc.value = { 
                     token: acc.token, 
                     name: acc.name, 
-                    dailyLimit: acc.dailyLimit 
+                    limitChat: acc.limitChat,
+                    limitImage: acc.limitImage,
+                    limitVideo: acc.limitVideo
                 };
             };
 
             const cancelEdit = () => {
                 editingId.value = null;
-                newAcc.value = { token: '', name: '', dailyLimit: 100 };
+                newAcc.value = { token: '', name: '', limitChat: -1, limitImage: 60, limitVideo: 0 };
             };
 
             const toggleAccount = async (acc) => {
@@ -262,7 +302,7 @@
                 await fetch(`/admin/accounts/${id}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dailyUsage: 0 })
+                    body: JSON.stringify({ usageChat: 0, usageImage: 0, usageVideo: 0 })
                 });
                 fetchData();
             };
@@ -291,7 +331,7 @@
 
             onMounted(() => {
                 fetchData();
-                setInterval(fetchData, 3000); // 每3秒自动刷新一次
+                setInterval(fetchData, 3000); 
             });
 
             return { accounts, stats, settings, newAcc, editingId, fetchData, submitAccount, editAccount, cancelEdit, toggleAccount, resetAccount, deleteAccount, saveSettings, resetAllUsage };

@@ -24,7 +24,7 @@ export default {
 
             // 如果 Authorization 为 Bearer pooled 或者没有提供有效的 sessionid，则使用账号池
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                token = await AccountManager.acquireToken();
+                token = await AccountManager.acquireToken('chat');
                 isPooled = true;
             } else {
                 // refresh_token切分

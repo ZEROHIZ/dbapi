@@ -42,7 +42,7 @@ export default {
             let isPooled = false;
 
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                token = await AccountManager.acquireToken();
+                token = await AccountManager.acquireToken('image');
                 isPooled = true;
             } else {
                 const tokens = images.tokenSplit(authHeader);

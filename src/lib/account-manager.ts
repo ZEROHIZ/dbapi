@@ -20,26 +20,45 @@ export interface Account {
   token: string;
   name: string;
   enabled: boolean;
-  dailyUsage: number;
-  totalUsage: number;
-  dailyLimit: number;
+  
+  // 统计与限制
+  limitChat: number;  // -1 表示不限
+  limitImage: number;
+  limitVideo: number;
+  
+  usageChat: number;
+  usageImage: number;
+  usageVideo: number;
+  
+  totalUsage: number; // 总调用次数
+  
   // 运行时状态
   status?: AccountStatus;
   lastUsed?: number;
+  
+  // 兼容旧字段（读取时转换，保存时废弃）
+  dailyLimit?: number;
+  dailyUsage?: number;
 }
 
 export interface Settings {
   cooldownTime: number; // 毫秒
 }
 
+export type RequestType = "chat" | "image" | "video";
+
 class AccountManager extends EventEmitter {
   private accounts: Account[] = [];
   private settings: Settings = {
-    cooldownTime: 10000, // 默认10秒
+    cooldownTime: 10000,
   };
   
-  // 存储等待中的 Promise 及其 reject/resolve
-  private queue: Array<{ resolve: (token: string) => void, reject: (err: any) => void }> = [];
+  // 队列需要记录请求类型
+  private queue: Array<{ 
+      type: RequestType;
+      resolve: (token: string) => void; 
+      reject: (err: any) => void 
+  }> = [];
 
   constructor() {
     super();
@@ -71,7 +90,14 @@ class AccountManager extends EventEmitter {
         this.accounts = stored.map((s: any) => ({
             ...s,
             status: AccountStatus.IDLE,
-            dailyLimit: s.dailyLimit || 100
+            // 兼容逻辑：如果没有新字段，使用默认值
+            limitChat: s.limitChat !== undefined ? s.limitChat : -1,
+            limitImage: s.limitImage !== undefined ? s.limitImage : 60,
+            limitVideo: s.limitVideo !== undefined ? s.limitVideo : 0,
+            usageChat: s.usageChat || 0,
+            usageImage: s.usageImage || 0,
+            usageVideo: s.usageVideo || 0,
+            totalUsage: s.totalUsage || 0
         }));
       }
     } catch (e) {
@@ -81,8 +107,12 @@ class AccountManager extends EventEmitter {
 
   private async saveAccounts() {
     try {
-      const toSave = this.accounts.map(({ id, token, name, enabled, dailyUsage, totalUsage, dailyLimit }) => ({
-        id, token, name, enabled, dailyUsage, totalUsage, dailyLimit
+      // 仅保存必要字段，清理旧字段
+      const toSave = this.accounts.map(a => ({
+        id: a.id, token: a.token, name: a.name, enabled: a.enabled,
+        limitChat: a.limitChat, limitImage: a.limitImage, limitVideo: a.limitVideo,
+        usageChat: a.usageChat, usageImage: a.usageImage, usageVideo: a.usageVideo,
+        totalUsage: a.totalUsage
       }));
       await fs.writeJson(ACCOUNTS_FILE, toSave, { spaces: 2 });
     } catch (e) {
@@ -109,68 +139,70 @@ class AccountManager extends EventEmitter {
     }
   }
 
-  /**
-   * 计算当前所有可用账号的总剩余次数
-   */
-  public getTotalRemainingUsage(): number {
+  // 计算某类服务的总剩余额度 (如果是无限则返回一个极大值)
+  public getTotalRemainingUsage(type: RequestType = 'chat'): number {
       return this.accounts
           .filter(a => a.enabled)
-          .reduce((sum, a) => sum + Math.max(0, a.dailyLimit - a.dailyUsage), 0);
+          .reduce((sum, a) => {
+              if (type === 'chat') return a.limitChat === -1 ? sum + 999999 : sum + Math.max(0, a.limitChat - a.usageChat);
+              if (type === 'image') return sum + Math.max(0, a.limitImage - a.usageImage);
+              if (type === 'video') return sum + Math.max(0, a.limitVideo - a.usageVideo);
+              return sum;
+          }, 0);
   }
 
-  private tryGetAvailableAccount(): Account | null {
-    return this.accounts.find(a => 
-      a.enabled && 
-      a.status === AccountStatus.IDLE && 
-      a.dailyUsage < a.dailyLimit
-    ) || null;
+  private tryGetAvailableAccount(type: RequestType): Account | null {
+    return this.accounts.find(a => {
+        if (!a.enabled || a.status !== AccountStatus.IDLE) return false;
+        
+        // 检查对应额度
+        if (type === 'chat' && a.limitChat !== -1 && a.usageChat >= a.limitChat) return false;
+        if (type === 'image' && a.usageImage >= a.limitImage) return false;
+        if (type === 'video' && a.usageVideo >= a.limitVideo) return false;
+        
+        return true;
+    }) || null;
   }
 
-  /**
-   * 外部获取 Token 的核心入口
-   */
-  public acquireToken(): Promise<string> {
+  public acquireToken(type: RequestType = 'chat'): Promise<string> {
     return new Promise((resolve, reject) => {
-      const remaining = this.getTotalRemainingUsage();
+      const remaining = this.getTotalRemainingUsage(type);
       
-      // 检查排队限制：排队人数不能超过总剩余次数
-      if (this.queue.length >= remaining && remaining > 0) {
-          return reject(new Error(`系统繁忙：排队人数(${this.queue.length})已达到今日剩余额度上限(${remaining})。`));
-      }
-      
+      // 简单流控：如果剩余为0，拒绝
+      // 注意：对于chat如果是-1，remaining会很大
       if (remaining <= 0) {
-          return reject(new Error("系统今日额度已耗尽。"));
+          return reject(new Error(`系统今日 [${type}] 额度已耗尽。`));
       }
 
-      const account = this.tryGetAvailableAccount();
+      const account = this.tryGetAvailableAccount(type);
       if (account) {
-        this.lockAccount(account);
+        this.lockAccount(account, type);
         resolve(account.token);
       } else {
-        // 进入队列等待空闲或冷却结束
-        this.queue.push({ resolve, reject });
-        logger.info(`[AccountManager] 暂无空闲账号，进入队列。当前排队: ${this.queue.length}`);
+        // 进入队列
+        this.queue.push({ type, resolve, reject });
+        logger.info(`[AccountManager] 暂无空闲账号，请求 [${type}] 进入队列。当前排队: ${this.queue.length}`);
       }
     });
   }
 
-  private lockAccount(account: Account) {
+  private lockAccount(account: Account, type: RequestType) {
     account.status = AccountStatus.BUSY;
     account.lastUsed = Date.now();
-    account.dailyUsage++;
     account.totalUsage++;
+    
+    if (type === 'chat') account.usageChat++;
+    if (type === 'image') account.usageImage++;
+    if (type === 'video') account.usageVideo++;
+    
     this.saveAccounts(); 
-    logger.info(`[AccountManager] 账号 [${account.name}] 已锁定并开始任务。今日已用: ${account.dailyUsage}/${account.dailyLimit}`);
+    logger.info(`[AccountManager] 账号 [${account.name}] 锁定 (Type: ${type})。`);
   }
 
-  /**
-   * 任务结束后的释放入口
-   */
   public releaseToken(token: string) {
     const account = this.accounts.find(a => a.token === token);
     if (!account) return;
 
-    // 状态切换到冷却中
     account.status = AccountStatus.COOLDOWN;
     logger.info(`[AccountManager] 账号 [${account.name}] 任务完成，进入 ${this.settings.cooldownTime/1000}s 冷却。`);
 
@@ -184,33 +216,37 @@ class AccountManager extends EventEmitter {
   private processQueue() {
     if (this.queue.length === 0) return;
 
-    const account = this.tryGetAvailableAccount();
-    if (account) {
-      const nextRequest = this.queue.shift();
-      if (nextRequest) {
-        this.lockAccount(account);
-        nextRequest.resolve(account.token);
-        logger.info(`[AccountManager] 队列请求已分配至 [${account.name}]。剩余排队: ${this.queue.length}`);
-      }
+    // 遍历队列，寻找第一个能被满足的请求
+    for (let i = 0; i < this.queue.length; i++) {
+        const req = this.queue[i];
+        const account = this.tryGetAvailableAccount(req.type);
+        
+        if (account) {
+            this.queue.splice(i, 1);
+            this.lockAccount(account, req.type);
+            req.resolve(account.token);
+            logger.info(`[AccountManager] 队列请求 [${req.type}] 已分配至 [${account.name}]。`);
+            return; 
+        }
     }
   }
 
-  // --- API 数据获取 ---
-
   public getAccountsData() {
-    return this.accounts.map(a => ({
-        ...a,
-        remaining: Math.max(0, a.dailyLimit - a.dailyUsage),
-        status: a.status
-    }));
+      // 计算剩余量辅助前端显示
+      return this.accounts.map(a => ({
+          ...a,
+          remainingChat: a.limitChat === -1 ? '∞' : Math.max(0, a.limitChat - a.usageChat),
+          remainingImage: Math.max(0, a.limitImage - a.usageImage),
+          remainingVideo: Math.max(0, a.limitVideo - a.usageVideo),
+          status: a.status
+      }));
   }
-
+  
   public getSettings() {
     return this.settings;
   }
-  
+
   public getStats() {
-      const remaining = this.getTotalRemainingUsage();
       return {
           totalAccounts: this.accounts.length,
           enabledAccounts: this.accounts.filter(a => a.enabled).length,
@@ -219,23 +255,26 @@ class AccountManager extends EventEmitter {
               busy: this.accounts.filter(a => a.status === AccountStatus.BUSY).length,
               cooldown: this.accounts.filter(a => a.status === AccountStatus.COOLDOWN).length,
           },
-          queue: {
-              current: this.queue.length,
-              limit: remaining
-          },
-          totalRemaining: remaining
+          queue: this.queue.length,
+          totalRemainingChat: this.getTotalRemainingUsage('chat'),
+          totalRemainingImage: this.getTotalRemainingUsage('image'),
+          totalRemainingVideo: this.getTotalRemainingUsage('video'),
       };
   }
 
-  public async addAccount(token: string, name: string, limit: number = 100) {
+  public async addAccount(token: string, name: string, limits: { chat?: number, image?: number, video?: number } = {}) {
     const newAccount: Account = {
       id: util.uuid(),
       token,
       name: name || `账号 ${this.accounts.length + 1}`,
       enabled: true,
-      dailyUsage: 0,
+      limitChat: limits.chat !== undefined ? limits.chat : -1,
+      limitImage: limits.image !== undefined ? limits.image : 60,
+      limitVideo: limits.video !== undefined ? limits.video : 0,
+      usageChat: 0,
+      usageImage: 0,
+      usageVideo: 0,
       totalUsage: 0,
-      dailyLimit: limit,
       status: AccountStatus.IDLE,
       lastUsed: 0
     };
@@ -263,7 +302,11 @@ class AccountManager extends EventEmitter {
   }
 
   public async resetDailyUsage() {
-    this.accounts.forEach(acc => acc.dailyUsage = 0);
+    this.accounts.forEach(acc => {
+        acc.usageChat = 0;
+        acc.usageImage = 0;
+        acc.usageVideo = 0;
+    });
     await this.saveAccounts();
     this.processQueue();
   }

@@ -35,7 +35,7 @@ export default {
             let isPooled = false;
 
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                token = await AccountManager.acquireToken();
+                token = await AccountManager.acquireToken('video');
                 isPooled = true;
             } else {
                 const tokens = video.tokenSplit(authHeader);

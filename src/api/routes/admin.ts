@@ -50,8 +50,13 @@ export default {
                 if (!body || !body.token) {
                     throw new Error("Token is required");
                 }
-                const { token, name, dailyLimit } = body;
-                const newAccount = await AccountManager.addAccount(token, name, parseInt(dailyLimit) || 100);
+                const { token, name, limitChat, limitImage, limitVideo } = body;
+                const limits = {
+                    chat: parseInt(limitChat) || -1,
+                    image: parseInt(limitImage) || 60,
+                    video: parseInt(limitVideo) || 0
+                };
+                const newAccount = await AccountManager.addAccount(token, name, limits);
                 return new SuccessfulBody(newAccount);
             } catch (err: any) {
                 return new Response({ code: 400, msg: err.message }, { statusCode: 400 });
