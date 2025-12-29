@@ -5,7 +5,7 @@ import time
 
 # 配置
 API_BASE = "http://127.0.0.1:8000"
-SESSION_ID = "b5806e5e684bb5027770ef1d93549ede"  # TODO: 替换为你从豆包获取的 sessionid
+SESSION_ID = "74baaa0b3bc2019b5627b2505fb264f9"  # TODO: 替换为你从豆包获取的 sessionid
 
 def print_separator():
     print("-" * 50 + "\n")
@@ -191,7 +191,7 @@ def test_video_generation():
         "Content-Type": "application/json"
     }
     payload = {
-        "prompt": "一只深红色的猫在跳水",
+        "prompt": "一只深红色的猫和狗比赛跳水，乌龟突然中途加入,然后在水里面出现一个气球",
         "ratio": "9:16",
         "stream": False
     }
