@@ -162,6 +162,32 @@ async function removeConversation(
 }
 
 /**
+ * 获取无水印视频播放信息
+ */
+async function getVideoPlayInfo(vid: string, refreshToken: string) {
+    try {
+        const params = {
+            msToken: generateFakeMsToken(),
+            a_bogus: generateFakeABogus()
+        };
+        const response = await request("POST", "/samantha/video/get_play_info", refreshToken, {
+            params,
+            data: { vid }
+        });
+        if (response && response.play_infos && Array.isArray(response.play_infos)) {
+             // 优先找 1080p，如果没有则取最后一个（通常是最高画质）
+             const best = response.play_infos.find((p: any) => p.definition === '1080p') || response.play_infos[response.play_infos.length - 1];
+             if (best && best.main) {
+                 return best.main;
+             }
+        }
+    } catch (err) {
+        logger.error(`[Video] 获取无水印地址失败: ${err.message}`);
+    }
+    return null;
+}
+
+/**
  * 轮询会话获取视频结果
  * @param convId 会话ID
  * @param refreshToken Token
@@ -251,10 +277,19 @@ async function pollForVideoResult(convId: string, refreshToken: string, timeoutM
                                         const vid = vidObj.vid;
                                         if (vid && !emittedKeys.has(vid)) {
                                             emittedKeys.add(vid);
+                                            
+                                            // 尝试获取无水印地址
+                                            let finalUrl = vidObj.download_url || vidObj.video_url;
+                                            const noWatermarkUrl = await getVideoPlayInfo(vid, refreshToken);
+                                            if (noWatermarkUrl) {
+                                                finalUrl = noWatermarkUrl;
+                                                logger.success(`[Video] 成功获取无水印地址: ${vid}`);
+                                            }
+
                                             videos.push({
                                                 vid,
                                                 cover: vidObj.cover?.image_preview?.url || vidObj.cover?.image_thumb?.url || vidObj.cover?.key,
-                                                url: vidObj.download_url || vidObj.video_url
+                                                url: finalUrl
                                             });
                                         }
                                     }
@@ -486,7 +521,7 @@ async function createVideoCompletionStream(
                 (err) => console.error(err)
             );
             */
-        });
+        }, refreshToken);
     })().catch((err) => {
         if (retryCount < MAX_RETRY_COUNT) {
             logger.error(`流式视频生成响应错误: ${err.stack}`);
@@ -678,12 +713,34 @@ async function receiveStream(stream: any): Promise<any> {
 /**
  * 创建转换流 (SSE)
  */
-function createTransStream(stream: any, endCallback?: Function) {
+function createTransStream(stream: any, endCallback?: Function, refreshToken?: string) {
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
     const emittedKeys = new Set<string>();
     const transStream = new PassThrough();
+    
+    // 异步任务追踪
+    const pendingTasks: Promise<void>[] = [];
+    let isInputFinished = false;
+
+    const safeClose = async () => {
+        try {
+            await Promise.all(pendingTasks);
+        } catch (e) {
+            logger.error(`[Video] 等待异步任务失败: ${e}`);
+        }
+        if (!transStream.closed) {
+             transStream.end("data: [DONE]\n\n");
+        }
+        endCallback && endCallback(convId);
+    };
+
+    const checkAndClose = () => {
+        if (isInputFinished) {
+            safeClose();
+        }
+    };
 
     // 初始包
     !transStream.closed && transStream.write(
@@ -714,8 +771,8 @@ function createTransStream(stream: any, endCallback?: Function) {
                 })} 
 
 `);
-                !transStream.closed && transStream.end("data: [DONE]\n\n");
-                endCallback && endCallback(convId);
+                isInputFinished = true;
+                checkAndClose();
                 return;
             }
 
@@ -736,8 +793,8 @@ function createTransStream(stream: any, endCallback?: Function) {
                 })} 
 
 `);
-                !transStream.closed && transStream.end("data: [DONE]\n\n");
-                endCallback && endCallback(convId);
+                isInputFinished = true;
+                checkAndClose();
                 return;
             }
 
@@ -758,18 +815,31 @@ function createTransStream(stream: any, endCallback?: Function) {
                         const url = vidObj.video_url; // 如果直接有
                         if (vid && !emittedKeys.has(vid)) {
                             emittedKeys.add(vid);
-                            const md = `![视频封面](${cover})
-视频链接: ${url || `(ID: ${vid})`}
+
+                            // 异步获取无水印地址
+                            const task = (async () => {
+                                let finalUrl = url || `(ID: ${vid})`;
+                                if (refreshToken) {
+                                    const noWatermark = await getVideoPlayInfo(vid, refreshToken);
+                                    if (noWatermark) finalUrl = noWatermark;
+                                }
+                                
+                                const md = `![视频封面](${cover})
+视频链接: ${finalUrl}
 `;
-                            transStream.write(`data: ${JSON.stringify({
-                                id: convId,
-                                model: MODEL_NAME,
-                                object: "chat.completion.chunk",
-                                choices: [{ index: 0, delta: { role: "assistant", content: md }, finish_reason: null }],
-                                created,
-                            })} 
+                                if (!transStream.closed) {
+                                    transStream.write(`data: ${JSON.stringify({
+                                        id: convId,
+                                        model: MODEL_NAME,
+                                        object: "chat.completion.chunk",
+                                        choices: [{ index: 0, delta: { role: "assistant", content: md }, finish_reason: null }],
+                                        created,
+                                    })} 
 
 `);
+                                }
+                            })();
+                            pendingTasks.push(task);
                         }
                     }
                 }
@@ -800,7 +870,7 @@ function createTransStream(stream: any, endCallback?: Function) {
 
         } catch (err) {
             logger.error(err);
-            !transStream.closed && transStream.end("\n\n");
+            if (!transStream.closed) transStream.end("\n\n");
         }
     });
 
@@ -815,8 +885,14 @@ function createTransStream(stream: any, endCallback?: Function) {
         }
         parser.feed(buffer.toString());
     });
-    stream.once("error", () => !transStream.closed && transStream.end("data: [DONE]\n\n"));
-    stream.once("close", () => !transStream.closed && transStream.end("data: [DONE]\n\n"));
+    stream.once("error", () => {
+        isInputFinished = true;
+        checkAndClose();
+    });
+    stream.once("close", () => {
+        isInputFinished = true;
+        checkAndClose();
+    });
     return transStream;
 }
 
