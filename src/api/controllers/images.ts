@@ -1298,4 +1298,5 @@ export default {
     createImageCompletionStream,
     getTokenLiveStatus,
     tokenSplit,
+    uploadFile,
 };

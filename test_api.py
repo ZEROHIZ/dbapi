@@ -134,7 +134,7 @@ def test_image_to_image(ref_image_url):
     print(">>> 4. 正在测试图生图 (Image-to-Image)...")
     if not ref_image_url:
         # 使用一个默认的公共图片作为备选
-        ref_image_url = "https://picsum.photos/id/237/200/300.jpg"
+        ref_image_url = "D:\daima\doubao-free-api-master\9dec80e1b813469895b2486c26abc02b~tplv-tb4s082cfz-aigc_resize_mark_1080_1080.webp"
         print(f"使用测试图片 URL: {ref_image_url}")
     else:
         print(f"使用上一轮生成的图片作为参考: {ref_image_url}")
@@ -226,6 +226,76 @@ def test_video_generation():
             print(f"响应详情: {response.text}")
         print_separator()
 
+def test_image_to_video(ref_image_url=None):
+    print(">>> 6. 正在测试图生视频 (Image-to-Video)...")
+    if not ref_image_url:
+        ref_image_url = "D:\daima\doubao-free-api-master\9dec80e1b813469895b2486c26abc02b~tplv-tb4s082cfz-aigc_resize_mark_1080_1080.webp"
+    
+    print(f"使用参考图: {ref_image_url}")
+    
+    # 检查是否为本地文件，如果是则转为 Base64
+    import os
+    import base64
+    import mimetypes
+    
+    image_input = ref_image_url
+    if os.path.exists(ref_image_url):
+        print("检测到本地文件，正在转换为 Base64...")
+        try:
+            mime_type, _ = mimetypes.guess_type(ref_image_url)
+            if not mime_type:
+                mime_type = "image/png" # 默认
+            
+            with open(ref_image_url, "rb") as f:
+                encoded_string = base64.b64encode(f.read()).decode('utf-8')
+                image_input = f"data:{mime_type};base64,{encoded_string}"
+            print("转换完成 (Base64)")
+        except Exception as e:
+            print(f"转换本地文件失败: {e}")
+            return
+
+    url = f"{API_BASE}/v1/video/generations"
+    headers = {
+        "Authorization": f"Bearer {SESSION_ID}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "prompt": "让画面中的内容动起来，变成动态视频",
+        "ratio": "16:9",
+        "image": image_input,
+        "stream": False
+    }
+
+    try:
+        print("正在请求图生视频 (这可能需要 1-3 分钟)...")
+        response = requests.post(url, headers=headers, json=payload, timeout=300)
+        response.raise_for_status()
+
+        data = response.json()
+        print(f"HTTP 状态: {response.status_code}")
+        
+        choice = data.get('choices', [{}])[0]
+        message = choice.get('message', {})
+        content = message.get('content', '')
+        videos = message.get('videos', [])
+
+        print(f"返回文本: {content}")
+        if videos:
+            print(f"生成的视频信息 ({len(videos)}个):")
+            for vid_info in videos:
+                print(f" - VID: {vid_info.get('vid')}")
+                print(f" - 封面: {vid_info.get('cover')}")
+                print(f" - URL: {vid_info.get('url') or '生成中...'}")
+        else:
+            print("注意: 响应中暂无直接视频链接，可能正在后台生成，请前往官网查看。")
+            
+        print_separator()
+    except Exception as e:
+        print(f"图生视频测试失败: {e}")
+        if 'response' in locals() and hasattr(response, 'text'):
+            print(f"响应详情: {response.text}")
+        print_separator()
+
 if __name__ == "__main__":
     print("开始运行全功能测试脚本...\n")
 
@@ -247,6 +317,9 @@ if __name__ == "__main__":
     #     test_image_to_image(generated_image_url)
     
     # 5. 视频生成
-    test_video_generation()
+    # test_video_generation()
+    
+    # 6. 图生视频
+    test_image_to_video()
     
     print("\n所有测试已完成。")

@@ -8,6 +8,7 @@ interface VideoCompletionRequestBody {
     prompt: string;
     ratio?: string; // e.g., "16:9", "9:16", "1:1"
     model?: string;
+    image?: string;
     stream: boolean;
 }
 
@@ -24,6 +25,7 @@ export default {
                 .validate('body.prompt', _.isString)
                 .validate('body.ratio', (v) => _.isUndefined(v) || _.isString(v))
                 .validate('body.model', (v) => _.isUndefined(v) || _.isString(v))
+                .validate('body.image', (v) => _.isUndefined(v) || _.isString(v))
                 .validate('body.stream', _.isBoolean)
                 .validate('headers.authorization', _.isString);
 
@@ -37,7 +39,8 @@ export default {
                 prompt,
                 ratio,
                 model,
-                stream
+                stream,
+                image
             } = request.body as VideoCompletionRequestBody;
 
             const assistantId = model && /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
@@ -45,7 +48,8 @@ export default {
             const videoParams = {
                 prompt,
                 ratio: ratio || "16:9",
-                model
+                model,
+                image
             };
 
             if (stream) {

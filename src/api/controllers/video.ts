@@ -13,6 +13,7 @@ import logger from "@/lib/logger.ts";
 import util from "@/lib/util.ts";
 import { logRequest } from "@/lib/debug-logger.ts";
 import { appendDumpText, dumpObject } from "@/lib/debug-dumper.ts";
+import images from "@/api/controllers/images.ts";
 
 // 模型名称
 const MODEL_NAME = "doubao-video";
@@ -319,14 +320,33 @@ async function pollForVideoResult(convId: string, refreshToken: string, timeoutM
  * @param params { prompt, ratio, model }
  */
 async function createVideoCompletion(
-    videoParams: { prompt: string; ratio: string; model?: string },
+    videoParams: { prompt: string; ratio: string; model?: string; image?: string },
     refreshToken: string,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0
 ) {
     return (async () => {
-        const { prompt, ratio, model } = videoParams;
-        logger.info(`收到视频生成请求：prompt=${prompt}, ratio=${ratio}`);
+        const { prompt, ratio, model, image } = videoParams;
+        logger.info(`收到视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
+
+        let attachments = [];
+        if (image) {
+            try {
+                const refImage = await images.uploadFile(image, refreshToken);
+                if (refImage && refImage.file_url?.url) {
+                    attachments = [{
+                        type: "image",
+                        key: refImage.file_url.url,
+                        extra: { refer_types: "overall" },
+                        identifier: util.uuid(),
+                    }];
+                    logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                }
+            } catch (err: any) {
+                logger.error(`参考图上传失败：${err.message}`);
+                throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
+            }
+        }
 
         // 构造 content 为 JSON 字符串
         const contentJson = JSON.stringify({
@@ -339,7 +359,7 @@ async function createVideoCompletion(
             {
                 content: contentJson,
                 content_type: 2020, // 视频生成类型
-                attachments: [],
+                attachments: attachments,
             },
         ];
 
@@ -434,14 +454,33 @@ async function createVideoCompletion(
  * 流式视频生成
  */
 async function createVideoCompletionStream(
-    videoParams: { prompt: string; ratio: string; model?: string },
+    videoParams: { prompt: string; ratio: string; model?: string; image?: string },
     refreshToken: string,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0
 ) {
     return (async () => {
-        const { prompt, ratio, model } = videoParams;
-        logger.info(`收到流式视频生成请求：prompt=${prompt}, ratio=${ratio}`);
+        const { prompt, ratio, model, image } = videoParams;
+        logger.info(`收到流式视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
+
+        let attachments = [];
+        if (image) {
+            try {
+                const refImage = await images.uploadFile(image, refreshToken);
+                if (refImage && refImage.file_url?.url) {
+                    attachments = [{
+                        type: "image",
+                        key: refImage.file_url.url,
+                        extra: { refer_types: "overall" },
+                        identifier: util.uuid(),
+                    }];
+                    logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                }
+            } catch (err: any) {
+                logger.error(`参考图上传失败：${err.message}`);
+                throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
+            }
+        }
 
         const contentJson = JSON.stringify({
             text: prompt,
@@ -452,7 +491,7 @@ async function createVideoCompletionStream(
             {
                 content: contentJson,
                 content_type: 2020,
-                attachments: [],
+                attachments: attachments,
             },
         ];
 
