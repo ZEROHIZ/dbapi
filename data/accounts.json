@@ -3,7 +3,7 @@
     "id": "951e8090-e4f5-11f0-8dd5-e586386fc721",
     "token": "74baaa0b3bc2019b5627b2505fb264f9",
     "name": "1750205",
-    "enabled": false,
+    "enabled": true,
     "limitChat": -1,
     "limitImage": 60,
     "limitVideo": 10,

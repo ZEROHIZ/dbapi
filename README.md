@@ -52,43 +52,34 @@
 
 ![example0](./doc/example-0.png)
 
-### 多账号接入
+### 多账号管理与自动化轮询
 
-你可以通过提供多个账号的sessionid并使用`,`拼接提供：
+项目现已支持 **可视化管理后台**。您不再需要每次请求都手动拼接长长的 Token 字符串。
 
-`Authorization: Bearer sessionid1,sessionid2,sessionid3`
+1. **进入后台**：访问 `http://你的IP:8000/admin`。
+2. **添加账号**：在界面中录入 `sessionid`，并设置每个账号的生图、视频每日限额。
+3. **启用池化**：调用 API 时，只需在 Header 中设置 `Authorization: Bearer pooled`，系统将自动在空闲且有额度的账号中进行轮询，并处理排队和冷却逻辑。
 
-每次请求服务会从中挑选一个。
+---
 
-## Docker部署
+## Docker 部署
 
-请准备一台具有公网IP的服务器并将8000端口开放。
+为了保证账号数据不丢失，**必须**将容器内的 `/app/data` 目录挂载到宿主机。
 
-拉取镜像并启动服务
-
-```shell
-docker run -it -d --init --name doubao-free-api -p 8000:8000 -e TZ=Asia/Shanghai vinlic/doubao-free-api:latest
-```
-
-查看服务实时日志
+### 方式一：Docker Run
 
 ```shell
-docker logs -f doubao-free-api
+docker run -d \
+  --init \
+  --name doubao-free-api \
+  -p 8000:8000 \
+  -e TZ=Asia/Shanghai \
+  -v $(pwd)/data:/app/data \
+  --restart always \
+  ghcr.io/zerohiz/dbapi:latest
 ```
 
-重启服务
-
-```shell
-docker restart doubao-free-api
-```
-
-停止服务
-
-```shell
-docker stop doubao-free-api
-```
-
-### Docker-compose部署
+### 方式二：Docker-compose 部署 (推荐)
 
 ```yaml
 version: '3'
@@ -96,157 +87,46 @@ version: '3'
 services:
   doubao-free-api:
     container_name: doubao-free-api
-    image: bitsea19/doubao-free-api:latest
+    image: ghcr.io/zerohiz/dbapi:latest
     restart: always
     ports:
       - "8000:8000"
     environment:
       - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/app/data
 ```
 
-### Render部署
+---
 
-**注意：部分部署区域可能无法连接豆包，如容器日志出现请求超时或无法连接，请切换其他区域部署！**
-**注意：免费账户的容器实例将在一段时间不活动时自动停止运行，这会导致下次请求时遇到50秒或更长的延迟，建议查看[Render容器保活](https://github.com/LLM-Red-Team/free-api-hub/#Render%E5%AE%B9%E5%99%A8%E4%BF%9D%E6%B4%BB)**
+## 平台部署注意事项
 
-1. fork本项目到你的github账号下。
+### Render 部署
+Render 支持持久化磁盘（Disks）。如果您在 Render 部署，请为其挂载一个挂载路径为 `/app/data` 的 Disk，否则每次重启都会清空已添加的账号。
 
-2. 访问 [Render](https://dashboard.render.com/) 并登录你的github账号。
+### Vercel 部署
+**注意**：Vercel 是完全**无状态**的。虽然您可以部署成功，但通过 `/admin` 界面添加的账号在 Vercel 实例重启（通常几分钟一次）后会全部消失。建议 Vercel 用户仍使用传统的 Header 传参方式。
 
-3. 构建你的 Web Service（New+ -> Build and deploy from a Git repository -> Connect你fork的项目 -> 选择部署区域 -> 选择实例类型为Free -> Create Web Service）。
-
-4. 等待构建完成后，复制分配的域名并拼接URL访问即可。
-
-### Vercel部署
-
-**注意：Vercel免费账户的请求响应超时时间为10秒，但接口响应通常较久，可能会遇到Vercel返回的504超时错误！**
-
-请先确保安装了Node.js环境。
-
-```shell
-npm i -g vercel --registry http://registry.npmmirror.com
-vercel login
-git clone https://github.com/Bitsea1/doubao-free-api
-cd doubao-free-api
-vercel --prod
-```
-
-## 原生部署
-
-请准备一台具有公网IP的服务器并将8000端口开放。
-
-请先安装好Node.js环境并且配置好环境变量，确认node命令可用。
-
-安装依赖
-
-```shell
-npm i
-```
-
-安装PM2进行进程守护
-
-```shell
-npm i -g pm2
-```
-
-编译构建，看到dist目录就是构建完成
-
-```shell
-npm run build
-```
-
-启动服务
-
-```shell
-pm2 start dist/index.js --name "doubao-free-api"
-```
-
-查看服务实时日志
-
-```shell
-pm2 logs doubao-free-api
-```
-
-重启服务
-
-```shell
-pm2 reload doubao-free-api
-```
-
-停止服务
-
-```shell
-pm2 stop doubao-free-api
-```
-
-## 推荐使用客户端
-
-使用以下二次开发客户端接入free-api系列项目更快更简单，支持文档/图像上传！
-
-由 [Clivia](https://github.com/Yanyutin753/lobe-chat) 二次开发的LobeChat [https://github.com/Yanyutin753/lobe-chat](https://github.com/Yanyutin753/lobe-chat)
-
-由 [时光@](https://github.com/SuYxh) 二次开发的ChatGPT Web [https://github.com/SuYxh/chatgpt-web-sea](https://github.com/SuYxh/chatgpt-web-sea)
+---
 
 ## 接口列表
 
-目前支持与openai兼容的 `/v1/chat/completions` 接口，可自行使用与openai或其他兼容的客户端接入接口，或者使用 [dify](https://dify.ai/) 等线上服务接入使用。
+### 鉴权 (Authentication)
+
+* **池化模式 (推荐)**：使用管理员在后台配置的账号池。
+  `Authorization: Bearer pooled`
+* **手动模式**：使用请求中携带的 Token。
+  `Authorization: Bearer [sessionid]`
 
 ### 对话补全
+**POST /v1/chat/completions** (兼容 OpenAI)
 
-对话补全接口，与openai的 [chat-completions-api](https://platform.openai.com/docs/guides/text-generation/chat-completions-api) 兼容。
+### 绘图生成 (支持图生图)
+**POST /v1/images/generations**
 
-**POST /v1/chat/completions**
+### 视频生成 (支持图生视频)
+**POST /v1/video/generations** (详见 API_DOCUMENTATION.md)
 
-header 需要设置 Authorization 头部：
-
-```
-Authorization: Bearer [sessionid]
-```
-
-请求数据：
-```json
-{
-    // 固定使用doubao
-    "model": "doubao",
-    // 目前多轮对话基于消息合并实现，某些场景可能导致能力下降且受单轮最大token数限制
-    // 如果您想获得原生的多轮对话体验，可以传入首轮消息获得的id，来接续上下文
-    // "conversation_id": "397193850580994",
-    "messages": [
-        {
-            "role": "user",
-            "content": "你叫什么？"
-        }
-    ],
-    // 如果使用SSE流请设置为true，默认false
-    "stream": false
-}
-```
-
-响应数据：
-```json
-{
-    // 如果想获得原生多轮对话体验，此id，你可以传入到下一轮对话的conversation_id来接续上下文
-    "id": "397193850645250",
-    "model": "doubao",
-    "object": "chat.completion",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "我叫豆包呀，能陪你聊天、帮你答疑解惑呢。"
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "usage": {
-        "prompt_tokens": 1,
-        "completion_tokens": 1,
-        "total_tokens": 2
-    },
-    "created": 1733300587
-}
-```
 ### 图文对话补全
 图文对话补全接口，与openai的 [chat-completions-api](https://platform.openai.com/docs/guides/text-generation/chat-completions-api) 兼容。
 
