@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main # 当代码推送到 main 分支时触发
+    tags:
+      - 'v*' # 当推送以 v 开头的标签（如 v1.0.0）时触发
   workflow_dispatch: # 允许手动触发
 
 env:
@@ -37,11 +39,16 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # 自动生成标签：如果是 tag 触发则生成版本号，如果是 branch 触发则生成 latest
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
