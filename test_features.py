@@ -54,6 +54,9 @@ def test_text_to_image():
     prompt = input("请输入提示词 (默认: 一只赛博朋克风格的猫): ") or "一只赛博朋克风格的猫"
     
     payload = {
+        "model": "Seedream 4.0",
+        "ratio": "1:1", 
+        "style": "通用",
         "prompt": prompt,
         "stream": False
     }

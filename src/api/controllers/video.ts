@@ -23,10 +23,15 @@ const DEFAULT_ASSISTANT_ID = "497858";
 const VERSION_CODE = "20800";
 // PC版本
 const PC_VERSION = "2.44.0";
-// 设备ID
-const DEVICE_ID = `7${util.generateRandomString({length: 18, charset: "numeric"})}`;
-// WebID
-const WEB_ID = `7${util.generateRandomString({length: 18, charset: "numeric"})}`;
+
+// 定义账号上下文接口，用于传递指纹信息
+interface AccountContext {
+    token: string;
+    deviceId: string;
+    webId: string;
+    userId: string;
+}
+
 // 最大重试次数
 const MAX_RETRY_COUNT = 0; // 调试阶段关闭重试，避免浪费额度
 // 重试延迟
@@ -50,6 +55,26 @@ const FAKE_HEADERS = {
     "Sec-Fetch-Site": "same-origin",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 };
+
+/**
+ * 格式化账号信息
+ */
+function normalizeAccount(account: string | any): AccountContext {
+    if (typeof account === "string") {
+        return {
+            token: account,
+            deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            userId: util.uuid(false)
+        };
+    }
+    return {
+        token: account.token,
+        deviceId: account.deviceId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        webId: account.webId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        userId: account.userId || util.uuid(false)
+    };
+}
 
 /**
  * 获取缓存中的access_token
@@ -92,14 +117,14 @@ function generateCookie(refreshToken: string) {
 /**
  * 请求doubao
  */
-async function request(method: string, uri: string, refreshToken: string, options: AxiosRequestConfig = {}) {
-    const token = await acquireToken(refreshToken);
+async function request(method: string, uri: string, context: AccountContext, options: AxiosRequestConfig = {}) {
+    const token = await acquireToken(context.token);
     const requestConfig: AxiosRequestConfig = {
         method,
         url: `https://www.doubao.com${uri}`,
         params: {
             aid: DEFAULT_ASSISTANT_ID,
-            device_id: DEVICE_ID,
+            device_id: context.deviceId,
             device_platform: "web",
             language: "zh",
             pc_version: PC_VERSION,
@@ -108,10 +133,10 @@ async function request(method: string, uri: string, refreshToken: string, option
             region: "CN",
             samantha_web: 1,
             sys_region: "CN",
-            tea_uuid: WEB_ID,
+            tea_uuid: context.webId,
             "use-olympus-account": 1,
             version_code: VERSION_CODE,
-            web_id: WEB_ID,
+            web_id: context.webId,
             web_tab_id: util.uuid(),
             ...(options.params || {})
         },
@@ -126,6 +151,7 @@ async function request(method: string, uri: string, refreshToken: string, option
         ..._.omit(options, "params", "headers"),
     };
 
+    logger.info(`[Video Request] DeviceID: ${context.deviceId} | WebID: ${context.webId}`);
     logRequest(requestConfig.method || method, requestConfig.url || uri, requestConfig.params, requestConfig.headers, requestConfig.data);
 
     const response = await axios.request(requestConfig);
@@ -139,7 +165,7 @@ async function request(method: string, uri: string, refreshToken: string, option
  */
 async function removeConversation(
     convId: string,
-    refreshToken: string
+    context: AccountContext
 ) {
     try {
         const params = {
@@ -151,7 +177,7 @@ async function removeConversation(
             "Agw-js-conv": "str",
             "Sec-Ch-Ua": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"'
         };
-        await request("POST", "/samantha/thread/delete", refreshToken, {
+        await request("POST", "/samantha/thread/delete", context, {
             data: { conversation_id: convId },
             params,
             headers
@@ -165,13 +191,13 @@ async function removeConversation(
 /**
  * 获取无水印视频播放信息
  */
-async function getVideoPlayInfo(vid: string, refreshToken: string) {
+async function getVideoPlayInfo(vid: string, context: AccountContext) {
     try {
         const params = {
             msToken: generateFakeMsToken(),
             a_bogus: generateFakeABogus()
         };
-        const response = await request("POST", "/samantha/video/get_play_info", refreshToken, {
+        const response = await request("POST", "/samantha/video/get_play_info", context, {
             params,
             data: { vid }
         });
@@ -191,10 +217,10 @@ async function getVideoPlayInfo(vid: string, refreshToken: string) {
 /**
  * 轮询会话获取视频结果
  * @param convId 会话ID
- * @param refreshToken Token
+ * @param context 账号上下文
  * @param timeoutMs 超时时间
  */
-async function pollForVideoResult(convId: string, refreshToken: string, timeoutMs: number = 180000): Promise<any[]> {
+async function pollForVideoResult(convId: string, context: AccountContext, timeoutMs: number = 180000): Promise<any[]> {
     const startTime = Date.now();
     let retryCount = 0;
 
@@ -207,8 +233,8 @@ async function pollForVideoResult(convId: string, refreshToken: string, timeoutM
                 language: 'zh',
                 device_platform: 'web',
                 aid: DEFAULT_ASSISTANT_ID,
-                device_id: DEVICE_ID,
-                web_id: WEB_ID,
+                device_id: context.deviceId,
+                web_id: context.webId,
                 web_tab_id: util.uuid(),
             };
 
@@ -237,7 +263,7 @@ async function pollForVideoResult(convId: string, refreshToken: string, timeoutM
             logger.info(`[轮询视频] 请求参数: convId=${convId}, cmd=3100`);
 
             // 使用 IM 专用接口
-            const response = await request("POST", "/im/chain/single", refreshToken, {
+            const response = await request("POST", "/im/chain/single", context, {
                 params,
                 data: postData,
                 headers: {
@@ -281,7 +307,7 @@ async function pollForVideoResult(convId: string, refreshToken: string, timeoutM
                                             
                                             // 尝试获取无水印地址
                                             let finalUrl = vidObj.download_url || vidObj.video_url;
-                                            const noWatermarkUrl = await getVideoPlayInfo(vid, refreshToken);
+                                            const noWatermarkUrl = await getVideoPlayInfo(vid, context);
                                             if (noWatermarkUrl) {
                                                 finalUrl = noWatermarkUrl;
                                                 logger.success(`[Video] 成功获取无水印地址: ${vid}`);
@@ -317,22 +343,24 @@ async function pollForVideoResult(convId: string, refreshToken: string, timeoutM
 
 /**
  * 同步视频生成
- * @param params { prompt, ratio, model }
+ * @param videoParams { prompt, ratio, model, image }
+ * @param account 账号信息
  */
 async function createVideoCompletion(
     videoParams: { prompt: string; ratio: string; model?: string; image?: string },
-    refreshToken: string,
+    account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0
 ) {
     return (async () => {
         const { prompt, ratio, model, image } = videoParams;
         logger.info(`收到视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
+        const context = normalizeAccount(account);
 
         let attachments = [];
         if (image) {
             try {
-                const refImage = await images.uploadFile(image, refreshToken);
+                const refImage = await images.uploadFile(image, context as any);
                 if (refImage && refImage.file_url?.url) {
                     attachments = [{
                         type: "image",
@@ -363,7 +391,7 @@ async function createVideoCompletion(
             },
         ];
 
-        const response = await request("post", "/samantha/chat/completion", refreshToken, {
+        const response = await request("post", "/samantha/chat/completion", context, {
             data: {
                 messages: videoMessage,
                 completion_option: {
@@ -410,7 +438,7 @@ async function createVideoCompletion(
         logger.info(`视频生成会话创建成功 ID=${convId}，开始轮询结果...`);
 
         // 2. 轮询获取真实视频地址
-        const videos = await pollForVideoResult(convId, refreshToken);
+        const videos = await pollForVideoResult(convId, context);
         
         // 3. 更新返回结果
         if (videos.length > 0) {
@@ -426,7 +454,7 @@ async function createVideoCompletion(
         }
 
         /* 调试阶段暂时不删除会话
-        removeConversation(convId, refreshToken).catch(
+        removeConversation(convId, context).catch(
             (err) => console.error('移除视频生成会话失败：', err)
         );
         */
@@ -440,7 +468,7 @@ async function createVideoCompletion(
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
                 return createVideoCompletion(
                     videoParams,
-                    refreshToken,
+                    account,
                     assistantId,
                     retryCount + 1
                 );
@@ -452,21 +480,24 @@ async function createVideoCompletion(
 
 /**
  * 流式视频生成
+ * @param videoParams { prompt, ratio, model, image }
+ * @param account 账号信息
  */
 async function createVideoCompletionStream(
     videoParams: { prompt: string; ratio: string; model?: string; image?: string },
-    refreshToken: string,
+    account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0
 ) {
     return (async () => {
         const { prompt, ratio, model, image } = videoParams;
         logger.info(`收到流式视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
+        const context = normalizeAccount(account);
 
         let attachments = [];
         if (image) {
             try {
-                const refImage = await images.uploadFile(image, refreshToken);
+                const refImage = await images.uploadFile(image, context as any);
                 if (refImage && refImage.file_url?.url) {
                     attachments = [{
                         type: "image",
@@ -495,7 +526,7 @@ async function createVideoCompletionStream(
             },
         ];
 
-        const response = await request("post", "/samantha/chat/completion", refreshToken, {
+        const response = await request("post", "/samantha/chat/completion", context, {
             data: {
                 messages: videoMessage,
                 completion_option: {
@@ -543,9 +574,7 @@ async function createVideoCompletionStream(
                         },
                     ],
                     created: util.unixTimestamp(),
-                })} 
-
-`
+                })}\n\n`
             );
             return transStream;
         }
@@ -556,11 +585,11 @@ async function createVideoCompletionStream(
                 `流式视频生成传输完成 ${util.timestamp() - streamStartTime}ms`
             );
             /* 调试阶段暂时不删除会话
-            removeConversation(convId, refreshToken).catch(
+            removeConversation(convId, context).catch(
                 (err) => console.error(err)
             );
             */
-        }, refreshToken);
+        }, context);
     })().catch((err) => {
         if (retryCount < MAX_RETRY_COUNT) {
             logger.error(`流式视频生成响应错误: ${err.stack}`);
@@ -569,7 +598,7 @@ async function createVideoCompletionStream(
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
                 return createVideoCompletionStream(
                     videoParams,
-                    refreshToken,
+                    account,
                     assistantId,
                     retryCount + 1
                 );
@@ -752,7 +781,7 @@ async function receiveStream(stream: any): Promise<any> {
 /**
  * 创建转换流 (SSE)
  */
-function createTransStream(stream: any, endCallback?: Function, refreshToken?: string) {
+function createTransStream(stream: any, endCallback?: Function, context?: AccountContext) {
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
@@ -858,8 +887,8 @@ function createTransStream(stream: any, endCallback?: Function, refreshToken?: s
                             // 异步获取无水印地址
                             const task = (async () => {
                                 let finalUrl = url || `(ID: ${vid})`;
-                                if (refreshToken) {
-                                    const noWatermark = await getVideoPlayInfo(vid, refreshToken);
+                                if (context) {
+                                    const noWatermark = await getVideoPlayInfo(vid, context);
                                     if (noWatermark) finalUrl = noWatermark;
                                 }
                                 

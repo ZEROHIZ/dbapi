@@ -21,6 +21,11 @@ export interface Account {
   name: string;
   enabled: boolean;
   
+  // 设备信息指纹
+  deviceId?: string;
+  webId?: string;
+  userId?: string;
+
   // 统计与限制
   limitChat: number;  // -1 表示不限
   limitImage: number;
@@ -110,6 +115,7 @@ class AccountManager extends EventEmitter {
       // 仅保存必要字段，清理旧字段
       const toSave = this.accounts.map(a => ({
         id: a.id, token: a.token, name: a.name, enabled: a.enabled,
+        deviceId: a.deviceId, webId: a.webId, userId: a.userId,
         limitChat: a.limitChat, limitImage: a.limitImage, limitVideo: a.limitVideo,
         usageChat: a.usageChat, usageImage: a.usageImage, usageVideo: a.usageVideo,
         totalUsage: a.totalUsage
@@ -164,7 +170,7 @@ class AccountManager extends EventEmitter {
     }) || null;
   }
 
-  public acquireToken(type: RequestType = 'chat'): Promise<string> {
+  public acquireToken(type: RequestType = 'chat'): Promise<Account> {
     return new Promise((resolve, reject) => {
       const remaining = this.getTotalRemainingUsage(type);
       
@@ -177,10 +183,10 @@ class AccountManager extends EventEmitter {
       const account = this.tryGetAvailableAccount(type);
       if (account) {
         this.lockAccount(account, type);
-        resolve(account.token);
+        resolve(account);
       } else {
         // 进入队列
-        this.queue.push({ type, resolve, reject });
+        this.queue.push({ type, resolve: (tokenOrAccount: any) => resolve(tokenOrAccount), reject });
         logger.info(`[AccountManager] 暂无空闲账号，请求 [${type}] 进入队列。当前排队: ${this.queue.length}`);
       }
     });
@@ -224,7 +230,7 @@ class AccountManager extends EventEmitter {
         if (account) {
             this.queue.splice(i, 1);
             this.lockAccount(account, req.type);
-            req.resolve(account.token);
+            req.resolve(account);
             logger.info(`[AccountManager] 队列请求 [${req.type}] 已分配至 [${account.name}]。`);
             return; 
         }
@@ -268,6 +274,9 @@ class AccountManager extends EventEmitter {
       token,
       name: name || `账号 ${this.accounts.length + 1}`,
       enabled: true,
+      deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+      webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+      userId: util.uuid(false),
       limitChat: limits.chat !== undefined ? limits.chat : -1,
       limitImage: limits.image !== undefined ? limits.image : 60,
       limitVideo: limits.video !== undefined ? limits.video : 0,

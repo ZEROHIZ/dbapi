@@ -1,0 +1,239 @@
+
+
+--- [2025-12-30T00:06:48.081Z] NEW STREAM START ---
+[RAW CHUNK RECEIVED] len=334, content=data: {"event_data":"{\"message_id\":\"34395572402755330\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"message_index\":1,\"conversation_type\":5}","event_id":"0","event_type":2002}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: other, Data Snippet: {"event_data":"{\"message_id\":\"34395572402755330\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"3441302990001...
+[RAW CHUNK RECEIVED] len=1128, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"我\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"1","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"将\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"2","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"我\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"将\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"根据\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"3","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"根据\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"messag...
+[RAW CHUNK RECEIVED] len=564, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"你\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"4","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"你\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message...
+[RAW CHUNK RECEIVED] len=2259, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"描述\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"5","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"的\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"6","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"场景\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"7","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"生成\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"8","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"描述\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"messag...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"的\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"场景\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"messag...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"生成\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"9","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"。\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"10","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"。\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message...
+[RAW CHUNK RECEIVED] len=574, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"\\\\n\\\\n\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"11","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"\\\\n\\\\n\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},...
+[RAW CHUNK RECEIVED] len=606, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频生成大约需要1-3分钟，生成好后我会主动发送给你，今日剩余 6 个视频生成额度。\\\"}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"12","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频生成大约需要1-3分钟，生成好后我会主动发送给你，今日剩余 6 个视频生成额度。\\\"}\",\"id\":\"c968146a...
+[RAW CHUNK RECEIVED] len=672, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755586\",\"local_message_id\":\"6ec92260-e513-11f0-ad05-91115ce5717a\",\"conversation_id\":\"34413029900012802\",\"local_conversation_id\":\"local_5787259324070096\",\"section_id\":\"34413029900013058\",\"reply_id\":\"34395572402755330\",\"is_delta\":true,\"status\":1,\"is_finish\":true,\"message_action_bar\":{},\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\",\"tts_content\":\"我将根据你描述的场景生成视频。\\n\\n视频生成大约需要1-3分钟，生成好后我会主动发送给你，今日剩余 6 个视频生成额度。\"}","event_id":"13","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34413029900012802
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{}\",\"id\":\"c968146a-2f42-4ff5-a7ba-c6de8963b726\"},\"message_id\":\"34395572402755...
+[FINALIZE] Final ID: 34413029900012802, Videos Count: 0
+[RAW CHUNK RECEIVED] len=61, content=data: {"event_data":"{}","event_id":"14","event_type":2003}
+
+
+[REGEX MATCH FAIL] This chunk contains no ID
+[FEEDING PARSER]...
+[STREAM CLOSED]
+[FINALIZE] Final ID: 34413029900012802, Videos Count: 0
+
+
+--- [2025-12-30T17:27:56.998Z] NEW STREAM START ---
+[RAW CHUNK RECEIVED] len=184, content=event: gateway-error
+data: {"code":"Internal","message":"ErrorX:code=710012000 stable=true isPeer=false peerStable=false message=[user invalid]\nchain=[\n(cause)0: Invalid User ID\n]"}
+[REGEX MATCH FAIL] This chunk contains no ID
+[FEEDING PARSER]...
+[RAW CHUNK RECEIVED] len=2, content=
+
+
+[REGEX MATCH FAIL] This chunk contains no ID
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: other, Data Snippet: {"code":"Internal","message":"ErrorX:code=710012000 stable=true isPeer=false peerStable=false message=[user invalid]\nchain=[\n(cause)0: Invalid User ...
+[PARSER ERROR] [请求doubao失败]: Internal-ErrorX:code=710012000 stable=true isPeer=false peerStable=false message=[user invalid]
+chain=[
+(cause)0: Invalid User ID
+]
+[STREAM CLOSED]
+[FINALIZE] Final ID: , Videos Count: 0
+
+
+--- [2025-12-30T17:31:14.213Z] NEW STREAM START ---
+[RAW CHUNK RECEIVED] len=334, content=data: {"event_data":"{\"message_id\":\"34503202769325058\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"message_index\":1,\"conversation_type\":5}","event_id":"0","event_type":2002}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: other, Data Snippet: {"event_data":"{\"message_id\":\"34503202769325058\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"3450657572531...
+[RAW CHUNK RECEIVED] len=1128, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"我\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"1","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"将\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"2","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"我\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"将\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"按照\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"3","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"按照\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=1130, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"你的\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"4","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"需求\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"5","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"你的\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"需求\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"生成\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"6","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"生成\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"一段\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"7","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"一段\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"海浪\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"8","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"海浪\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"拍打\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"9","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"拍打\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=6, content=data: 
+[REGEX MATCH FAIL] This chunk contains no ID
+[FEEDING PARSER]...
+[RAW CHUNK RECEIVED] len=2256, content={"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"沙滩\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"10","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"、\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"11","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"夕阳\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"12","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"西\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"13","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"沙滩\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"、\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"夕阳\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"西\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[RAW CHUNK RECEIVED] len=1696, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"下\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"14","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"的\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"15","event_type":2001}
+
+data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"高清\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"16","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"下\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"的\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"高清\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=566, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"电影\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"17","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"电影\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"感\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"18","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"感\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[RAW CHUNK RECEIVED] len=566, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"19","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"messag...
+[RAW CHUNK RECEIVED] len=565, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"。\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"20","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"。\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message...
+[RAW CHUNK RECEIVED] len=574, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"\\\\n\\\\n\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"21","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"\\\\n\\\\n\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},...
+[RAW CHUNK RECEIVED] len=606, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频生成大约需要1-3分钟，生成好后我会主动发送给你，今日剩余 9 个视频生成额度。\\\"}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":4,\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\"}","event_id":"22","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{\\\"text\\\":\\\"视频生成大约需要1-3分钟，生成好后我会主动发送给你，今日剩余 9 个视频生成额度。\\\"}\",\"id\":\"3b1f1591...
+[RAW CHUNK RECEIVED] len=689, content=data: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325314\",\"local_message_id\":\"56bbd400-e5a5-11f0-9a5a-d3f415ff2171\",\"conversation_id\":\"34506575725319426\",\"local_conversation_id\":\"local_2044614433538239\",\"section_id\":\"34506575725319682\",\"reply_id\":\"34503202769325058\",\"is_delta\":true,\"status\":1,\"is_finish\":true,\"message_action_bar\":{},\"input_content_type\":2020,\"message_index\":2,\"bot_id\":\"7338286299411103781\",\"tts_content\":\"我将按照你的需求生成一段海浪拍打沙滩、夕阳西下的高清电影感视频。\\n\\n视频生成大约需要1-3分钟，生成好后我会主动发送给你，今日剩余 9 个视频生成额度。\"}","event_id":"23","event_type":2001}
+
+
+[REGEX MATCH SUCCESS] Found ID: 34506575725319426
+[FEEDING PARSER]...
+[EVENT] ID: undefined, Type: 2001, Data Snippet: {"event_data":"{\"message\":{\"content_type\":2001,\"content\":\"{}\",\"id\":\"3b1f1591-ad36-459c-a00a-b92797a3068f\"},\"message_id\":\"34503202769325...
+[FINALIZE] Final ID: 34506575725319426, Videos Count: 0
+[RAW CHUNK RECEIVED] len=61, content=data: {"event_data":"{}","event_id":"24","event_type":2003}
+
+
+[REGEX MATCH FAIL] This chunk contains no ID
+[FEEDING PARSER]...
+[STREAM CLOSED]
+[FINALIZE] Final ID: 34506575725319426, Videos Count: 0

@@ -20,12 +20,35 @@ const DEFAULT_ASSISTANT_ID = "497858";
 const VERSION_CODE = "20800";
 // PC版本（对齐网页端）
 const PC_VERSION = "2.44.0";
-// 设备ID（19位数字字符串）
-const DEVICE_ID = `7${util.generateRandomString({length: 18, charset: "numeric"})}`;
-// WebID（19位数字字符串）
-const WEB_ID = `7${util.generateRandomString({length: 18, charset: "numeric"})}`;
-// 用户ID
-const USER_ID = util.uuid(false);
+
+// 定义账号上下文接口，用于传递指纹信息
+interface AccountContext {
+    token: string;
+    deviceId: string;
+    webId: string;
+    userId: string;
+}
+
+/**
+ * 格式化账号信息，确保拥有指纹
+ */
+function normalizeAccount(account: string | any): AccountContext {
+    if (typeof account === "string") {
+        return {
+            token: account,
+            deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            userId: util.uuid(false)
+        };
+    }
+    return {
+        token: account.token,
+        deviceId: account.deviceId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        webId: account.webId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        userId: account.userId || util.uuid(false)
+    };
+}
+
 // 最大重试次数
 const MAX_RETRY_COUNT = 3;
 // 重试延迟
@@ -101,17 +124,17 @@ function generateCookie(refreshToken: string) {
  *
  * @param method 请求方法
  * @param uri 请求路径
- * @param params 请求参数
- * @param headers 请求头
+ * @param context 账号上下文
+ * @param options 请求选项
  */
-async function request(method: string, uri: string, refreshToken: string, options: AxiosRequestConfig = {}) {
-    const token = await acquireToken(refreshToken);
+async function request(method: string, uri: string, context: AccountContext, options: AxiosRequestConfig = {}) {
+    const token = await acquireToken(context.token);
     const requestConfig: AxiosRequestConfig = {
         method,
         url: `https://www.doubao.com${uri}`,
         params: {
             aid: DEFAULT_ASSISTANT_ID,
-            device_id: DEVICE_ID,
+            device_id: context.deviceId,
             device_platform: "web",
             language: "zh",
             pc_version: PC_VERSION,
@@ -120,10 +143,10 @@ async function request(method: string, uri: string, refreshToken: string, option
             region: "CN",
             samantha_web: 1,
             sys_region: "CN",
-            tea_uuid: WEB_ID,
+            tea_uuid: context.webId,
             "use-olympus-account": 1,
             version_code: VERSION_CODE,
-            web_id: WEB_ID,
+            web_id: context.webId,
             web_tab_id: util.uuid(),
             ...(options.params || {})
         },
@@ -138,6 +161,7 @@ async function request(method: string, uri: string, refreshToken: string, option
         ..._.omit(options, "params", "headers"),
     };
 
+    logger.info(`[Image Request] DeviceID: ${context.deviceId} | WebID: ${context.webId}`);
     logRequest(requestConfig.method || method, requestConfig.url || uri, requestConfig.params, requestConfig.headers, requestConfig.data);
 
     const response = await axios.request(requestConfig);
@@ -152,11 +176,12 @@ async function request(method: string, uri: string, refreshToken: string, option
  *
  * 在对话流传输完毕后移除会话，避免创建的会话出现在用户的对话列表中
  *
- * @param refreshToken 用于刷新access_token的refresh_token
+ * @param convId 会话ID
+ * @param context 账号上下文
  */
 async function removeConversation(
     convId: string,
-    refreshToken: string
+    context: AccountContext
 ) {
     try {
         // 添加必要的查询参数
@@ -172,7 +197,7 @@ async function removeConversation(
             "Sec-Ch-Ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\""
         };
 
-        await request("POST", "/samantha/thread/delete", refreshToken, {
+        await request("POST", "/samantha/thread/delete", context, {
             data: {
                 conversation_id: convId
             },
@@ -188,7 +213,7 @@ async function removeConversation(
 /**
  * 同步图片生成补全（对齐官方请求格式，新增extra字段）
  * @param imageParams 图片生成参数 {model, prompt, ratio, style, referenceImage, genModel?: string}
- * @param refreshToken 刷新令牌
+ * @param account 账号信息对象或refreshToken字符串
  * @param assistantId 智能体ID
  * @param retryCount 重试次数
  */
@@ -201,18 +226,19 @@ async function createImageCompletion(
         referenceImage?: string;
         genModel?: string;
     },
-    refreshToken: string,
+    account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0
 ) {
     return (async () => {
         const {prompt, ratio, style, referenceImage, genModel = "Seedream 4.0"} = imageParams;
         logger.info(`收到图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}, 生图模型=${genModel}`);
+        const context = normalizeAccount(account);
 
         let attachments = [];
         if (referenceImage) {
             try {
-                const refImage = await uploadFile(referenceImage, refreshToken);
+                const refImage = await uploadFile(referenceImage, context);
                 if (refImage && refImage.file_url?.url) {
                     attachments = [{
                         type: "image",
@@ -224,7 +250,7 @@ async function createImageCompletion(
                     }];
                     logger.info(`参考图上传成功，附件构造完成：${refImage.file_url.url}`);
                 }
-            } catch (err) {
+            } catch (err: any) {
                 logger.error(`参考图上传失败：${err.message}`);
                 throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
             }
@@ -245,7 +271,7 @@ async function createImageCompletion(
             },
         ];
 
-        const response = await request("post", "/samantha/chat/completion", refreshToken, {
+        const response = await request("post", "/samantha/chat/completion", context, {
             data: {
                 messages: imageMessage,
                 completion_option: {
@@ -291,7 +317,7 @@ async function createImageCompletion(
             `图片生成流传输完成 ${util.timestamp() - streamStartTime}ms`
         );
 
-        removeConversation(answer.id, refreshToken).catch(
+        removeConversation(answer.id, context).catch(
             (err) => console.error('移除图片生成会话失败：', err)
         );
 
@@ -304,7 +330,7 @@ async function createImageCompletion(
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
                 return createImageCompletion(
                     imageParams,
-                    refreshToken,
+                    account,
                     assistantId,
                     retryCount + 1
                 );
@@ -317,24 +343,25 @@ async function createImageCompletion(
 /**
  * 流式图片生成补全（新增参考图支持）
  * @param imageParams 图片生成参数 {model, prompt, ratio, style, referenceImage}
- * @param refreshToken 刷新令牌
+ * @param account 账号信息对象或refreshToken字符串
  * @param assistantId 智能体ID
  * @param retryCount 重试次数
  */
 async function createImageCompletionStream(
     imageParams: { model: string; prompt: string; ratio: string; style: string; referenceImage?: string },
-    refreshToken: string,
+    account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0
 ) {
     return (async () => {
         const {prompt, ratio, style, referenceImage} = imageParams;
         logger.info(`收到流式图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}`);
+        const context = normalizeAccount(account);
 
         let attachments = [];
         if (referenceImage) {
             try {
-                const refImage = await uploadFile(referenceImage, refreshToken);
+                const refImage = await uploadFile(referenceImage, context);
                 if (refImage && refImage.file_url?.url) {
                     attachments = [{
                         type: "vlm_image",
@@ -347,7 +374,7 @@ async function createImageCompletionStream(
                     }];
                     logger.info(`参考图上传成功：${refImage.file_url.url}`);
                 }
-            } catch (err) {
+            } catch (err: any) {
                 logger.error(`参考图上传失败：${err.message}`);
                 throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
             }
@@ -364,7 +391,7 @@ async function createImageCompletionStream(
             },
         ];
 
-        const response = await request("post", "/samantha/chat/completion", refreshToken, {
+        const response = await request("post", "/samantha/chat/completion", context, {
             data: {
                 messages: imageMessage,
                 completion_option: {
@@ -425,7 +452,7 @@ async function createImageCompletionStream(
             logger.success(
                 `流式图片生成传输完成 ${util.timestamp() - streamStartTime}ms`
             );
-            removeConversation(convId, refreshToken).catch(
+            removeConversation(convId, context).catch(
                 (err) => console.error(err)
             );
         });
@@ -437,7 +464,7 @@ async function createImageCompletionStream(
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
                 return createImageCompletionStream(
                     imageParams,
-                    refreshToken,
+                    account,
                     assistantId,
                     retryCount + 1
                 );
@@ -603,8 +630,8 @@ function buildAuthorization(
     return {authorization, amzDate, payloadHash};
 }
 
-async function acquireUploadAuth(refreshToken: string, resourceType: number) {
-    const data: any = await request("post", "/alice/resource/prepare_upload", refreshToken, {
+async function acquireUploadAuth(context: AccountContext, resourceType: number) {
+    const data: any = await request("post", "/alice/resource/prepare_upload", context, {
         data: {tenant_id: "5", scene_id: "5", resource_type: resourceType},
         headers: {"agw-js-conv": "str"},
     });
@@ -850,12 +877,12 @@ async function commitImageUpload(
  * 上传文件
  *
  * @param fileUrl 文件URL
- * @param refreshToken 用于刷新access_token的refresh_token
+ * @param context 账号上下文
  * @param isVideoImage 是否是用于视频图像
  */
 async function uploadFile(
     fileUrl: string,
-    refreshToken: string,
+    context: AccountContext,
     isVideoImage: boolean = false
 ) {
     await checkFileUrl(fileUrl);
@@ -888,7 +915,7 @@ async function uploadFile(
     const ext = (extFromMime || path.extname(filename).replace(/^\./, "") || (mime.getExtension(mimeType) || "bin")).toLowerCase();
 
     try {
-        const auth = await acquireUploadAuth(refreshToken, isImage ? 2 : 1);
+        const auth = await acquireUploadAuth(context, isImage ? 2 : 1);
         logger.info(`STS acquired for ${isImage ? "image" : "file"}`);
 
         const apply = await applyImageUpload(

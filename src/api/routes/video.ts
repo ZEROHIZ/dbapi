@@ -31,16 +31,16 @@ export default {
                 .validate('headers.authorization', _.isString);
 
             const authHeader = request.headers.authorization || "";
-            let token: string;
+            let account: any;
             let isPooled = false;
 
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                token = await AccountManager.acquireToken('video');
+                account = await AccountManager.acquireToken('video');
                 isPooled = true;
             } else {
                 const tokens = video.tokenSplit(authHeader);
-                token = _.sample(tokens) || "";
-                if (!token) {
+                account = _.sample(tokens) || "";
+                if (!account) {
                     throw new Error('无效的Authorization Token');
                 }
             }
@@ -64,8 +64,9 @@ export default {
 
             try {
                 if (stream) {
-                    const s = await video.createVideoCompletionStream(videoParams, token, assistantId);
+                    const s = await video.createVideoCompletionStream(videoParams, account, assistantId);
                     if (isPooled) {
+                        const token = account.token;
                         s.on('end', () => AccountManager.releaseToken(token));
                         s.on('error', () => AccountManager.releaseToken(token));
                     }
@@ -78,12 +79,12 @@ export default {
                         }
                     });
                 } else {
-                    const result = await video.createVideoCompletion(videoParams, token, assistantId);
-                    if (isPooled) AccountManager.releaseToken(token);
-                    return new Response(result);
+                    const result = await video.createVideoCompletion(videoParams, account, assistantId);
+                    if (isPooled) AccountManager.releaseToken(account.token);
+                    return result;
                 }
             } catch (err) {
-                if (isPooled) AccountManager.releaseToken(token);
+                if (isPooled) AccountManager.releaseToken(account?.token || account);
                 throw err;
             }
         }

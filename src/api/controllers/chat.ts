@@ -20,12 +20,15 @@ const DEFAULT_ASSISTANT_ID = "497858";
 const VERSION_CODE = "20800";
 // PC版本（对齐网页端）
 const PC_VERSION = "2.44.0";
-// 设备ID（19位数字字符串）
-const DEVICE_ID = `7${util.generateRandomString({length: 18, charset: "numeric"})}`;
-// WebID（19位数字字符串）
-const WEB_ID = `7${util.generateRandomString({length: 18, charset: "numeric"})}`;
-// 用户ID
-const USER_ID = util.uuid(false);
+
+// 定义账号上下文接口，用于传递指纹信息
+interface AccountContext {
+    token: string;
+    deviceId: string;
+    webId: string;
+    userId: string;
+}
+
 // 最大重试次数
 const MAX_RETRY_COUNT = 3;
 // 重试延迟
@@ -101,17 +104,17 @@ function generateCookie(refreshToken: string) {
  *
  * @param method 请求方法
  * @param uri 请求路径
- * @param params 请求参数
- * @param headers 请求头
+ * @param context 账号上下文信息
+ * @param options 请求配置
  */
-async function request(method: string, uri: string, refreshToken: string, options: AxiosRequestConfig = {}) {
-    const token = await acquireToken(refreshToken);
+async function request(method: string, uri: string, context: AccountContext, options: AxiosRequestConfig = {}) {
+    const token = await acquireToken(context.token);
     const requestConfig: AxiosRequestConfig = {
         method,
         url: `https://www.doubao.com${uri}`,
         params: {
             aid: DEFAULT_ASSISTANT_ID,
-            device_id: DEVICE_ID,
+            device_id: context.deviceId,
             device_platform: "web",
             language: "zh",
             pc_version: PC_VERSION,
@@ -120,10 +123,10 @@ async function request(method: string, uri: string, refreshToken: string, option
             region: "CN",
             samantha_web: 1,
             sys_region: "CN",
-            tea_uuid: WEB_ID,
+            tea_uuid: context.webId,
             "use-olympus-account": 1,
             version_code: VERSION_CODE,
-            web_id: WEB_ID,
+            web_id: context.webId,
             web_tab_id: util.uuid(),
             ...(options.params || {})
         },
@@ -152,11 +155,12 @@ async function request(method: string, uri: string, refreshToken: string, option
  *
  * 在对话流传输完毕后移除会话，避免创建的会话出现在用户的对话列表中
  *
- * @param refreshToken 用于刷新access_token的refresh_token
+ * @param convId 会话ID
+ * @param context 账号上下文
  */
 async function removeConversation(
     convId: string,
-    refreshToken: string
+    context: AccountContext
 ) {
     try {
         const params = {
@@ -171,7 +175,7 @@ async function removeConversation(
             "Sec-Ch-Ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\""
         };
 
-        await request("POST", "/samantha/thread/delete", refreshToken, {
+        await request("POST", "/samantha/thread/delete", context, {
             data: {
                 conversation_id: convId
             },
@@ -187,33 +191,54 @@ async function removeConversation(
 
 
 /**
+ * 格式化账号信息，确保拥有指纹
+ */
+function normalizeAccount(account: string | any): AccountContext {
+    if (typeof account === "string") {
+        return {
+            token: account,
+            deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            userId: util.uuid(false)
+        };
+    }
+    return {
+        token: account.token,
+        deviceId: account.deviceId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        webId: account.webId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        userId: account.userId || util.uuid(false)
+    };
+}
+
+/**
  * 同步对话补全
  *
  * @param messages 参考gpt系列消息格式，多轮对话请完整提供上下文
- * @param refreshToken 用于刷新access_token的refresh_token
+ * @param account 账号信息对象或refreshToken字符串
  * @param assistantId 智能体ID，默认使用Doubao原版
  * @param retryCount 重试次数
  */
 async function createCompletion(
     messages: any[],
-    refreshToken: string,
+    account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     refConvId = "",
     retryCount = 0
 ) {
     return (async () => {
         logger.info(`收到 ${messages.length} 条消息`);
+        const context = normalizeAccount(account);
 
         const refFileUrls = extractRefFileUrls(messages);
         const refs = refFileUrls.length
             ? await Promise.all(
-                refFileUrls.map((fileUrl) => uploadFile(fileUrl, refreshToken))
+                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context))
             )
             : [];
 
         if (!/[0-9a-zA-Z]{24}/.test(refConvId)) refConvId = "";
 
-        const response = await request("post", "/samantha/chat/completion", refreshToken, {
+        const response = await request("post", "/samantha/chat/completion", context, {
             data: {
                 messages: messagesPrepare(messages, refs, !!refConvId),
                 completion_option: {
@@ -258,7 +283,7 @@ async function createCompletion(
             `Stream has completed transfer ${util.timestamp() - streamStartTime}ms`
         );
 
-        removeConversation(answer.id, refreshToken).catch(
+        removeConversation(answer.id, context).catch(
             (err) => !refConvId && console.error('移除会话失败：', err)
         );
 
@@ -271,7 +296,7 @@ async function createCompletion(
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
                 return createCompletion(
                     messages,
-                    refreshToken,
+                    account,
                     assistantId,
                     refConvId,
                     retryCount + 1
@@ -286,30 +311,31 @@ async function createCompletion(
  * 流式对话补全
  *
  * @param messages 参考gpt系列消息格式，多轮对话请完整提供上下文
- * @param refreshToken 用于刷新access_token的refresh_token
+ * @param account 账号信息对象或refreshToken字符串
  * @param assistantId 智能体ID，默认使用Doubao原版
  * @param retryCount 重试次数
  */
 async function createCompletionStream(
     messages: any[],
-    refreshToken: string,
+    account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     refConvId = "",
     retryCount = 0
 ) {
     return (async () => {
         logger.info(`收到 ${messages.length} 条消息（流式）`);
+        const context = normalizeAccount(account);
 
         const refFileUrls = extractRefFileUrls(messages);
         const refs = refFileUrls.length
             ? await Promise.all(
-                refFileUrls.map((fileUrl) => uploadFile(fileUrl, refreshToken))
+                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context))
             )
             : [];
 
         if (!/[0-9a-zA-Z]{24}/.test(refConvId)) refConvId = "";
 
-        const response = await request("post", "/samantha/chat/completion", refreshToken, {
+        const response = await request("post", "/samantha/chat/completion", context, {
             data: {
                 messages: messagesPrepare(messages, refs, !!refConvId),
                 completion_option: {
@@ -375,7 +401,7 @@ async function createCompletionStream(
             logger.success(
                 `Stream has completed transfer ${util.timestamp() - streamStartTime}ms`
             );
-            removeConversation(convId, refreshToken).catch(
+            removeConversation(convId, context).catch(
                 (err) => !refConvId && console.error(err)
             );
         });
@@ -387,7 +413,7 @@ async function createCompletionStream(
                 await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
                 return createCompletionStream(
                     messages,
-                    refreshToken,
+                    account,
                     assistantId,
                     refConvId,
                     retryCount + 1

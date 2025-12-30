@@ -19,18 +19,18 @@ export default {
                 .validate('headers.authorization', _.isString)
             
             const authHeader = request.headers.authorization || "";
-            let token: string;
+            let account: any;
             let isPooled = false;
 
             // 如果 Authorization 为 Bearer pooled 或者没有提供有效的 sessionid，则使用账号池
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                token = await AccountManager.acquireToken('chat');
+                account = await AccountManager.acquireToken('chat');
                 isPooled = true;
             } else {
                 // refresh_token切分
                 const tokens = chat.tokenSplit(authHeader);
                 // 随机挑选一个refresh_token
-                token = _.sample(tokens) || "";
+                account = _.sample(tokens) || "";
             }
 
             const {model, conversation_id: convId, messages, stream} = request.body;
@@ -38,10 +38,11 @@ export default {
 
             try {
                 if (stream) {
-                    const s = await chat.createCompletionStream(messages, token, assistantId, convId);
+                    const s = await chat.createCompletionStream(messages, account, assistantId, convId);
                     
                     // 如果是池化账号，在流结束时释放
                     if (isPooled) {
+                        const token = account.token;
                         s.on('end', () => AccountManager.releaseToken(token));
                         s.on('error', () => AccountManager.releaseToken(token));
                     }
@@ -55,12 +56,12 @@ export default {
                         }
                     });
                 } else {
-                    const res = await chat.createCompletion(messages, token, assistantId, convId);
-                    if (isPooled) AccountManager.releaseToken(token);
+                    const res = await chat.createCompletion(messages, account, assistantId, convId);
+                    if (isPooled) AccountManager.releaseToken(account.token);
                     return res;
                 }
             } catch (err) {
-                if (isPooled) AccountManager.releaseToken(token);
+                if (isPooled) AccountManager.releaseToken(account?.token || account);
                 throw err;
             }
         }
