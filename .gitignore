@@ -3,5 +3,6 @@ node_modules/
 logs/
 .vercel
 11/
-data/
+/data
 *.log
+.request_debug.jsonl
