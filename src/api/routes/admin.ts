@@ -4,30 +4,41 @@ import fs from "fs-extra";
 import Response from "@/lib/response/Response.ts";
 import path from "path";
 
+// 读取版本号
+const getVersion = async () => {
+    try {
+        const packageJsonPath = path.join(process.cwd(), 'package.json');
+        const packageJson = await fs.readJson(packageJsonPath);
+        return packageJson.version || 'unknown';
+    } catch {
+        return 'unknown';
+    }
+};
+
 export default {
     get: {
         '/admin': async () => {
-             // 兼容开发环境和生产环境（dist）
-             let filePath = 'public/admin.html';
-             if (!await fs.pathExists(filePath)) {
-                 filePath = path.join(process.cwd(), 'admin.html');
-             }
-             if (!await fs.pathExists(filePath)) {
-                 filePath = path.join(process.cwd(), 'public', 'admin.html');
-             }
+            // 兼容开发环境和生产环境（dist）
+            let filePath = 'public/admin.html';
+            if (!await fs.pathExists(filePath)) {
+                filePath = path.join(process.cwd(), 'admin.html');
+            }
+            if (!await fs.pathExists(filePath)) {
+                filePath = path.join(process.cwd(), 'public', 'admin.html');
+            }
 
-             if (await fs.pathExists(filePath)) {
+            if (await fs.pathExists(filePath)) {
                 const content = await fs.readFile(filePath);
                 return new Response(content, {
                     type: 'html',
                     headers: {
                         'Content-Type': 'text/html; charset=utf-8',
-                         Expires: '-1'
+                        Expires: '-1'
                     }
                 });
-             } else {
-                 return new Response("Admin page not found. Please ensure public/admin.html exists.", { status: 404 });
-             }
+            } else {
+                return new Response("Admin page not found. Please ensure public/admin.html exists.", { status: 404 });
+            }
         },
         '/admin/accounts': async () => {
             const accounts = AccountManager.getAccountsData();
@@ -40,6 +51,10 @@ export default {
         '/admin/settings': async () => {
             const settings = AccountManager.getSettings();
             return new SuccessfulBody(settings);
+        },
+        '/admin/version': async () => {
+            const version = await getVersion();
+            return new SuccessfulBody({ version });
         }
     },
     post: {
