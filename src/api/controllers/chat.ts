@@ -790,9 +790,7 @@ function messagesPrepare(messages: any[], refs: any[], isRefConv = false, tools?
 
     const result = [
         {
-            content: (attachments.length > 0 || isRefConv || messages.length >= 2) 
-                ? JSON.stringify({text: finalContent}) 
-                : finalContent,
+            content: JSON.stringify({text: finalContent}),
             content_type: 2001,
             attachments,
             references: [],
