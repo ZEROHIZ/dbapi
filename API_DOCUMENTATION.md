@@ -83,11 +83,6 @@ Authorization: Bearer pooled
             "finish_reason": "stop"
         }
     ],
-    "usage": {
-        "prompt_tokens": 1,
-        "completion_tokens": 1,
-        "total_tokens": 2
-    },
     "created": 1733300587
 }
 ```

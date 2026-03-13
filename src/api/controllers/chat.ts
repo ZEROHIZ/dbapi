@@ -55,6 +55,94 @@ const FAKE_HEADERS = {
 // 文件最大大小
 const FILE_MAX_SIZE = 100 * 1024 * 1024;
 
+// ===== Tool Calling 模拟支持 =====
+
+const TOOL_CALL_START = "<<<tool_call>>>";
+const TOOL_CALL_END = "<<<end_tool_call>>>";
+
+/**
+ * 将 OpenAI 格式的 tools 数组转换为 system prompt 文本
+ */
+function buildToolSystemPrompt(tools: any[]): string {
+    if (!tools || !tools.length) return "";
+    const toolDescriptions = tools
+        .filter((t: any) => t?.type === "function" && t?.function)
+        .map((t: any) => {
+            const fn = t.function;
+            let desc = `- **${fn.name}**`;
+            if (fn.description) desc += `: ${fn.description}`;
+            if (fn.parameters?.properties) {
+                const params = Object.entries(fn.parameters.properties)
+                    .map(([k, v]: [string, any]) => {
+                        const required = fn.parameters.required?.includes(k) ? "(必填)" : "(可选)";
+                        return `    - ${k} (${v.type || "any"}) ${required}: ${v.description || ""}`;
+                    })
+                    .join("\n");
+                desc += "\n  参数:\n" + params;
+            }
+            return desc;
+        })
+        .join("\n\n");
+
+    return `你有以下工具可以使用。当你认为需要调用工具来完成用户的请求时，请严格按以下格式输出工具调用（可以调用多个工具，每个工具调用独立包裹）：
+
+${TOOL_CALL_START}
+{"name": "工具名称", "arguments": {"参数名": "参数值"}}
+${TOOL_CALL_END}
+
+可用工具列表：
+${toolDescriptions}
+
+重要规则：
+1. 如果不需要调用工具，就正常文字回复，不要输出上述标记。
+2. arguments 必须是有效的 JSON 对象。
+3. 每次只在必要时调用工具。`;
+}
+
+/**
+ * 从模型输出文本中检测并提取 tool_call
+ * 返回 null 表示没有检测到工具调用
+ */
+function parseToolCalls(text: string): { toolCalls: any[]; textContent: string } | null {
+    if (!text || !text.includes(TOOL_CALL_START)) return null;
+
+    const toolCalls: any[] = [];
+    let textContent = text;
+    const regex = new RegExp(
+        `${escapeRegex(TOOL_CALL_START)}\\s*([\\s\\S]*?)\\s*${escapeRegex(TOOL_CALL_END)}`,
+        "g"
+    );
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+        try {
+            const parsed = JSON.parse(match[1].trim());
+            toolCalls.push({
+                id: `call_${crypto.randomBytes(12).toString("hex")}`,
+                type: "function",
+                function: {
+                    name: parsed.name,
+                    arguments: typeof parsed.arguments === "string"
+                        ? parsed.arguments
+                        : JSON.stringify(parsed.arguments || {}),
+                },
+            });
+        } catch (e) {
+            logger.warn(`[ToolCall] 解析工具调用 JSON 失败: ${match[1]}`);
+        }
+        // 从文本中移除工具调用标记
+        textContent = textContent.replace(match[0], "");
+    }
+
+    if (!toolCalls.length) return null;
+
+    textContent = textContent.trim();
+    return { toolCalls, textContent };
+}
+
+function escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * 获取缓存中的access_token
  *
@@ -223,7 +311,8 @@ async function createCompletion(
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     refConvId = "",
-    retryCount = 0
+    retryCount = 0,
+    tools?: any[]
 ) {
     return (async () => {
         logger.info(`收到 ${messages.length} 条消息`);
@@ -240,7 +329,7 @@ async function createCompletion(
 
         const response = await request("post", "/samantha/chat/completion", context, {
             data: {
-                messages: messagesPrepare(messages, refs, !!refConvId),
+                messages: messagesPrepare(messages, refs, !!refConvId, tools),
                 completion_option: {
                     is_regen: false,
                     with_suggest: true,
@@ -269,7 +358,8 @@ async function createCompletion(
             timeout: 300000,
             responseType: "stream"
         });
-        if (response.headers["content-type"].indexOf("text/event-stream") == -1) {
+        const contentType = response.headers["content-type"] || "";
+        if (contentType.indexOf("text/event-stream") == -1) {
             response.data.on("data", (buffer) => logger.error(buffer.toString()));
             throw new APIException(
                 EX.API_REQUEST_FAILED,
@@ -299,7 +389,8 @@ async function createCompletion(
                     account,
                     assistantId,
                     refConvId,
-                    retryCount + 1
+                    retryCount + 1,
+                    tools
                 );
             })();
         }
@@ -320,7 +411,8 @@ async function createCompletionStream(
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     refConvId = "",
-    retryCount = 0
+    retryCount = 0,
+    tools?: any[]
 ) {
     return (async () => {
         logger.info(`收到 ${messages.length} 条消息（流式）`);
@@ -337,7 +429,7 @@ async function createCompletionStream(
 
         const response = await request("post", "/samantha/chat/completion", context, {
             data: {
-                messages: messagesPrepare(messages, refs, !!refConvId),
+                messages: messagesPrepare(messages, refs, !!refConvId, tools),
                 completion_option: {
                     is_regen: false,
                     with_suggest: true,
@@ -367,7 +459,8 @@ async function createCompletionStream(
             responseType: "stream"
         });
 
-        if (response.headers["content-type"].indexOf("text/event-stream") == -1) {
+        const contentType = response.headers["content-type"] || "";
+        if (contentType.indexOf("text/event-stream") == -1) {
             logger.error(
                 `Invalid response Content-Type:`,
                 response.headers["content-type"]
@@ -389,7 +482,6 @@ async function createCompletionStream(
                             finish_reason: "stop",
                         },
                     ],
-                    usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
                     created: util.unixTimestamp(),
                 })}\n\n`
             );
@@ -404,7 +496,7 @@ async function createCompletionStream(
             removeConversation(convId, context).catch(
                 (err) => !refConvId && console.error(err)
             );
-        });
+        }, !!(tools && tools.length));
     })().catch((err) => {
         if (retryCount < MAX_RETRY_COUNT) {
             logger.error(`Stream response error: ${err.stack}`);
@@ -416,7 +508,8 @@ async function createCompletionStream(
                     account,
                     assistantId,
                     refConvId,
-                    retryCount + 1
+                    retryCount + 1,
+                    tools
                 );
             })();
         }
@@ -517,8 +610,29 @@ function truncateForLog(s: string, max = 200): string {
  * @param messages 参考gpt系列消息格式，多轮对话请完整提供上下文
  * @param refs 参考文件列表
  * @param isRefConv 是否为引用会话
+ * @param tools OpenAI格式的工具定义（可选）
  */
-function messagesPrepare(messages: any[], refs: any[], isRefConv = false) {
+function messagesPrepare(messages: any[], refs: any[], isRefConv = false, tools?: any[]) {
+    // 注入 tools system prompt
+    if (tools && tools.length > 0) {
+        const toolPrompt = buildToolSystemPrompt(tools);
+        if (toolPrompt) {
+            messages = [{ role: "system", content: toolPrompt }, ...messages];
+            logger.info("[ToolCall] 已注入工具定义 system prompt");
+        }
+    }
+
+    // 将 tool role 消息转换为 user 消息
+    messages = messages.map((msg: any) => {
+        if (msg.role === "tool") {
+            return {
+                role: "user",
+                content: `[工具调用结果] 函数 "${msg.name || "unknown"}" 返回:\n${msg.content}`,
+            };
+        }
+        return msg;
+    });
+
     let content;
     if (isRefConv || messages.length < 2) {
         content = messages.reduce((content, message) => {
@@ -1192,7 +1306,6 @@ async function receiveStream(stream: any): Promise<any> {
                     finish_reason: "stop",
                 },
             ],
-            usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
             created: util.unixTimestamp(),
         };
         let isEnd = false;
@@ -1208,6 +1321,15 @@ async function receiveStream(stream: any): Promise<any> {
                     })
                     .join("\n\n");
                 data.choices[0].message.content += (data.choices[0].message.content ? "\n\n" : "") + `【图片生成完成：共${imgs.length}张】\n` + md;
+            }
+
+            // 检测并处理 tool_call
+            const toolResult = parseToolCalls(data.choices[0].message.content);
+            if (toolResult) {
+                logger.info(`[ToolCall] 检测到 ${toolResult.toolCalls.length} 个工具调用`);
+                (data.choices[0].message as any).tool_calls = toolResult.toolCalls;
+                data.choices[0].message.content = toolResult.textContent || null as any;
+                data.choices[0].finish_reason = "tool_calls";
             }
         };
         const parser = createParser((event) => {
@@ -1298,13 +1420,16 @@ async function receiveStream(stream: any): Promise<any> {
  * @param stream 消息流
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function) {
+function createTransStream(stream: any, endCallback?: Function, hasTools = false) {
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
     let imageNoticeSent = false;
     const emittedImageKeys = new Set<string>();
     const transStream = new PassThrough();
+    // 当有 tools 时，缓冲所有文本以在结束时检测 tool_call
+    let toolBuffer = "";
+    const isBuffering = hasTools;
     !transStream.closed &&
     transStream.write(
         `data: ${JSON.stringify({
@@ -1321,6 +1446,89 @@ function createTransStream(stream: any, endCallback?: Function) {
             created,
         })}\n\n`
     );
+
+    // 流结束时的统一处理函数
+    const flushToolBuffer = () => {
+        if (isBuffering && toolBuffer) {
+            const toolResult = parseToolCalls(toolBuffer);
+            if (toolResult) {
+                // 检测到工具调用，发送 tool_calls 格式的 chunk
+                logger.info(`[ToolCall][Stream] 检测到 ${toolResult.toolCalls.length} 个工具调用`);
+                if (toolResult.textContent) {
+                    transStream.write(`data: ${JSON.stringify({
+                        id: convId,
+                        model: MODEL_NAME,
+                        object: "chat.completion.chunk",
+                        choices: [{
+                            index: 0,
+                            delta: {role: "assistant", content: toolResult.textContent},
+                            finish_reason: null,
+                        }],
+                        created,
+                    })}\n\n`);
+                }
+                // 发送每个 tool_call
+                for (const tc of toolResult.toolCalls) {
+                    transStream.write(`data: ${JSON.stringify({
+                        id: convId,
+                        model: MODEL_NAME,
+                        object: "chat.completion.chunk",
+                        choices: [{
+                            index: 0,
+                            delta: {
+                                role: "assistant",
+                                tool_calls: [tc],
+                            },
+                            finish_reason: null,
+                        }],
+                        created,
+                    })}\n\n`);
+                }
+                // 发送结束 chunk，finish_reason 为 tool_calls
+                transStream.write(`data: ${JSON.stringify({
+                    id: convId,
+                    model: MODEL_NAME,
+                    object: "chat.completion.chunk",
+                    choices: [{
+                        index: 0,
+                        delta: {},
+                        finish_reason: "tool_calls",
+                    }],
+                    created,
+                })}\n\n`);
+                !transStream.closed && transStream.end("data: [DONE]\n\n");
+                endCallback && endCallback(convId);
+                return;
+            } else {
+                // 没有检测到工具调用，将缓冲的文本作为普通内容发送
+                transStream.write(`data: ${JSON.stringify({
+                    id: convId,
+                    model: MODEL_NAME,
+                    object: "chat.completion.chunk",
+                    choices: [{
+                        index: 0,
+                        delta: {role: "assistant", content: toolBuffer},
+                        finish_reason: null,
+                    }],
+                    created,
+                })}\n\n`);
+            }
+        }
+        // 常规结束
+        transStream.write(`data: ${JSON.stringify({
+            id: convId,
+            model: MODEL_NAME,
+            object: "chat.completion.chunk",
+            choices: [{
+                index: 0,
+                delta: {role: "assistant", content: ""},
+                finish_reason: "stop",
+            }],
+            created,
+        })}\n\n`);
+        !transStream.closed && transStream.end("data: [DONE]\n\n");
+        endCallback && endCallback(convId);
+    };
     const parser = createParser((event) => {
         try {
             if (event.type !== "event") return;
@@ -1330,21 +1538,7 @@ function createTransStream(stream: any, endCallback?: Function) {
             if (rawResult.code)
                 throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${rawResult.code}-${rawResult.message}`);
             if (rawResult.event_type == 2003) {
-                transStream.write(`data: ${JSON.stringify({
-                    id: convId,
-                    model: MODEL_NAME,
-                    object: "chat.completion.chunk",
-                    choices: [
-                        {
-                            index: 0,
-                            delta: {role: "assistant", content: ""},
-                            finish_reason: "stop"
-                        },
-                    ],
-                    created,
-                })}\n\n`);
-                !transStream.closed && transStream.end("data: [DONE]\n\n");
-                endCallback && endCallback(convId);
+                flushToolBuffer();
                 return;
             }
             if (rawResult.event_type != 2001) {
@@ -1356,21 +1550,7 @@ function createTransStream(stream: any, endCallback?: Function) {
             if (!convId)
                 convId = result.conversation_id;
             if (result.is_finish) {
-                transStream.write(`data: ${JSON.stringify({
-                    id: convId,
-                    model: MODEL_NAME,
-                    object: "chat.completion.chunk",
-                    choices: [
-                        {
-                            index: 0,
-                            delta: {role: "assistant", content: ""},
-                            finish_reason: "stop"
-                        },
-                    ],
-                    created,
-                })}\n\n`);
-                !transStream.closed && transStream.end("data: [DONE]\n\n");
-                endCallback && endCallback(convId);
+                flushToolBuffer();
                 return;
             }
             const message = result.message;
@@ -1435,19 +1615,24 @@ function createTransStream(stream: any, endCallback?: Function) {
                 text = message.content;
             }
             if (text) {
-                transStream.write(`data: ${JSON.stringify({
-                    id: convId,
-                    model: MODEL_NAME,
-                    object: "chat.completion.chunk",
-                    choices: [
-                        {
-                            index: 0,
-                            delta: {role: "assistant", content: text},
-                            finish_reason: null,
-                        },
-                    ],
-                    created,
-                })}\n\n`);
+                if (isBuffering) {
+                    // 有 tools 时缓冲文本，等待流结束后统一处理
+                    toolBuffer += text;
+                } else {
+                    transStream.write(`data: ${JSON.stringify({
+                        id: convId,
+                        model: MODEL_NAME,
+                        object: "chat.completion.chunk",
+                        choices: [
+                            {
+                                index: 0,
+                                delta: {role: "assistant", content: text},
+                                finish_reason: null,
+                            },
+                        ],
+                        created,
+                    })}\n\n`);
+                }
             }
         } catch (err) {
             logger.error(err);

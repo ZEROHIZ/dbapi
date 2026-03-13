@@ -225,11 +225,6 @@ Render 支持持久化磁盘（Disks）。如果您在 Render 部署，请为其
             "finish_reason": "stop"
         }
     ],
-    "usage": {
-        "prompt_tokens": 1,
-        "completion_tokens": 1,
-        "total_tokens": 2
-    },
     "created": 1733300587
 }
 ```
@@ -268,11 +263,6 @@ Render 支持持久化磁盘（Disks）。如果您在 Render 部署，请为其
             "finish_reason": "stop"
         }
     ],
-    "usage": {
-        "prompt_tokens": 1,
-        "completion_tokens": 1,
-        "total_tokens": 2
-    },
     "created": 1763985148
 }
 ```
@@ -312,11 +302,6 @@ Render 支持持久化磁盘（Disks）。如果您在 Render 部署，请为其
             "finish_reason": "stop"
         }
     ],
-    "usage": {
-        "prompt_tokens": 1,
-        "completion_tokens": 1,
-        "total_tokens": 2
-    },
     "created": 1763985148
 }
 ```

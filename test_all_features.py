@@ -38,9 +38,9 @@ def save_result(data, prefix="result"):
         print("❌ 没有返回数据")
         return
 
-    # --- 图片测试专用：不提取，直接打印原始 JSON ---
-    if prefix in ["t2i", "i2i"]:
-        print(f"\n🔍 [DEBUG] 图片接口原始返回数据 ({prefix}):")
+    # --- 图片/对话测试专用：不提取，直接打印原始 JSON ---
+    if prefix in ["t2i", "i2i", "chat"]:
+        print(f"\n🔍 [DEBUG] 接口原始返回数据 ({prefix}):")
         print("-" * 50)
         print(json.dumps(data, indent=2, ensure_ascii=False))
         print("-" * 50)
@@ -75,7 +75,7 @@ def test_text_to_image():
     prompt = input("请输入提示词 (默认: 一只赛博朋克风格的猫): ") or "一只赛博朋克风格的猫"
     
     payload = {
-        "model": "Seedream 4.0",
+        "model": "Seedream 4.5",
         "prompt": prompt,
         "ratio": "1:1",
         "style": "通用",
@@ -141,6 +141,24 @@ def test_image_to_video():
     print("⏳ 视频生成通常需要 1-3 分钟，请耐心等待...")
     run_request("video/generations", payload, "i2v")
 
+# --- 5. 对话聊天 ---
+def test_chat():
+    print("\n--- 💬 5. 对话 (Chat Completions) ---")
+    prompt = input("请输入你想对豆包说的话 (默认: 你好，请自我介绍一下): ") or "你好，请自我介绍一下"
+    
+    payload = {
+        "model": "doubao",
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "stream": False
+    }
+    
+    run_request("chat/completions", payload, "chat")
+
 # --- 通用请求发送 ---
 def run_request(endpoint, payload, prefix):
     try:
@@ -170,15 +188,17 @@ def main():
         print("2. 图生图 (Image -> Image)")
         print("3. 文生视频 (Text -> Video)")
         print("4. 图生视频 (Image -> Video)")
-        print("5. 退出")
+        print("5. 对话聊天 (Chat completions)")
+        print("6. 退出")
         
-        choice = input("\n👉 请选择功能 (1-5): ")
+        choice = input("\n👉 请选择功能 (1-6): ")
         
         if choice == '1': test_text_to_image()
         elif choice == '2': test_image_to_image()
         elif choice == '3': test_text_to_video()
         elif choice == '4': test_image_to_video()
-        elif choice == '5': 
+        elif choice == '5': test_chat()
+        elif choice == '6': 
             print("👋 再见")
             break
         else:

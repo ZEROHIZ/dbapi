@@ -303,7 +303,8 @@ async function createImageCompletion(
             responseType: "stream"
         });
 
-        if (response.headers["content-type"].indexOf("text/event-stream") === -1) {
+        const contentType = response.headers["content-type"] || "";
+        if (contentType.indexOf("text/event-stream") === -1) {
             response.data.on("data", (buffer) => logger.error(buffer.toString()));
             throw new APIException(
                 EX.API_REQUEST_FAILED,
@@ -423,7 +424,8 @@ async function createImageCompletionStream(
             responseType: "stream"
         });
 
-        if (response.headers["content-type"].indexOf("text/event-stream") === -1) {
+        const contentType = response.headers["content-type"] || "";
+        if (contentType.indexOf("text/event-stream") === -1) {
             logger.error(`无效的响应Content-Type: ${response.headers["content-type"]}`);
             response.data.on("data", (buffer) => logger.error(buffer.toString()));
             const transStream = new PassThrough();
@@ -1019,7 +1021,6 @@ async function receiveStream(stream: any): Promise<any> {
                     finish_reason: "stop",
                 },
             ],
-            usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
             created: util.unixTimestamp(),
         };
         let isEnd = false;

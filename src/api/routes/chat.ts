@@ -33,12 +33,12 @@ export default {
                 account = _.sample(tokens) || "";
             }
 
-            const {model, conversation_id: convId, messages, stream} = request.body;
+            const {model, conversation_id: convId, messages, stream, tools} = request.body;
             const assistantId = /^[a-z0-9]{24,}$/.test(model) ? model : undefined
 
             try {
                 if (stream) {
-                    const s = await chat.createCompletionStream(messages, account, assistantId, convId);
+                    const s = await chat.createCompletionStream(messages, account, assistantId, convId, 0, tools);
                     
                     // 如果是池化账号，在流结束时释放
                     if (isPooled) {
@@ -56,7 +56,7 @@ export default {
                         }
                     });
                 } else {
-                    const res = await chat.createCompletion(messages, account, assistantId, convId);
+                    const res = await chat.createCompletion(messages, account, assistantId, convId, 0, tools);
                     if (isPooled) AccountManager.releaseToken(account.token);
                     return res;
                 }
