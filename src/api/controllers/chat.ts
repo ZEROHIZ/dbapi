@@ -1,13 +1,13 @@
-import {PassThrough} from "stream";
+import { PassThrough } from "stream";
 import crypto from "crypto";
 import path from "path";
 import _ from "lodash";
 import mime from "mime";
-import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 
 import APIException from "@/lib/exceptions/APIException.ts";
 import EX from "@/api/consts/exceptions.ts";
-import {createParser} from "eventsource-parser";
+import { createParser } from "eventsource-parser";
 import logger from "@/lib/logger.ts";
 import util from "@/lib/util.ts";
 import { logRequest } from "@/lib/debug-logger.ts";
@@ -197,15 +197,15 @@ function normalizeAccount(account: string | any): AccountContext {
     if (typeof account === "string") {
         return {
             token: account,
-            deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
-            webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+            deviceId: `7${util.generateRandomString({ length: 18, charset: "numeric" })}`,
+            webId: `7${util.generateRandomString({ length: 18, charset: "numeric" })}`,
             userId: util.uuid(false)
         };
     }
     return {
         token: account.token,
-        deviceId: account.deviceId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
-        webId: account.webId || `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+        deviceId: account.deviceId || `7${util.generateRandomString({ length: 18, charset: "numeric" })}`,
+        webId: account.webId || `7${util.generateRandomString({ length: 18, charset: "numeric" })}`,
         userId: account.userId || util.uuid(false)
     };
 }
@@ -256,10 +256,10 @@ async function createCompletion(
                     enable_commerce_credit: false,
                     event_id: "0"
                 },
-                evaluate_option: {web_ab_params: ""},
-                section_id: `26${util.generateRandomString({length: 16, charset: "numeric"})}`,
+                evaluate_option: { web_ab_params: "" },
+                section_id: `26${util.generateRandomString({ length: 16, charset: "numeric" })}`,
                 conversation_id: "0",
-                local_conversation_id: `local_16${util.generateRandomString({length: 14, charset: "numeric"})}`,
+                local_conversation_id: `local_16${util.generateRandomString({ length: 14, charset: "numeric" })}`,
                 local_message_id: util.uuid()
             },
             headers: {
@@ -353,10 +353,10 @@ async function createCompletionStream(
                     enable_commerce_credit: false,
                     event_id: "0"
                 },
-                evaluate_option: {web_ab_params: ""},
-                section_id: `26${util.generateRandomString({length: 16, charset: "numeric"})}`,
+                evaluate_option: { web_ab_params: "" },
+                section_id: `26${util.generateRandomString({ length: 16, charset: "numeric" })}`,
                 conversation_id: "0",
-                local_conversation_id: `local_16${util.generateRandomString({length: 14, charset: "numeric"})}`,
+                local_conversation_id: `local_16${util.generateRandomString({ length: 14, charset: "numeric" })}`,
                 local_message_id: util.uuid()
             },
             headers: {
@@ -389,7 +389,7 @@ async function createCompletionStream(
                             finish_reason: "stop",
                         },
                     ],
-                    usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
+                    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
                     created: util.unixTimestamp(),
                 })}\n\n`
             );
@@ -610,7 +610,7 @@ function messagesPrepare(messages: any[], refs: any[], isRefConv = false) {
         key: ref.file_url?.url,
         file_review_state: 3,
         file_parse_state: 3,
-        option: {width: ref.width || 1, height: ref.height || 1},
+        option: { width: ref.width || 1, height: ref.height || 1 },
     }));
 
     logger.info(`[attachments] count=${attachments.length}`);
@@ -676,7 +676,7 @@ function messagesPrepare(messages: any[], refs: any[], isRefConv = false) {
 
     return [
         {
-            content: JSON.stringify({text: finalContent}),
+            content: JSON.stringify({ text: finalContent }),
             content_type: 2001,
             attachments,
             references: [],
@@ -745,7 +745,7 @@ function amzDates(date = new Date()) {
     const SS = pad(date.getUTCSeconds());
     const dateStamp = `${yyyy}${mm}${dd}`;
     const amzDate = `${dateStamp}T${HH}${MM}${SS}Z`;
-    return {amzDate, dateStamp};
+    return { amzDate, dateStamp };
 }
 
 function canonicalQuery(params: Record<string, string>) {
@@ -767,7 +767,7 @@ function buildAuthorization(
     service = IMAGEX_SERVICE,
     opts?: { payloadHash?: string; signContentSha256?: boolean }
 ) {
-    const {amzDate, dateStamp} = amzDates();
+    const { amzDate, dateStamp } = amzDates();
     const canonicalQS = canonicalQuery(params);
 
     const headersMap: Record<string, string> = {
@@ -811,13 +811,13 @@ function buildAuthorization(
     const credential = `${accessKey}/${credentialScope}`;
     const authorization = `${algorithm} Credential=${credential}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    return {authorization, amzDate, payloadHash};
+    return { authorization, amzDate, payloadHash };
 }
 
 async function acquireUploadAuth(refreshToken: string, resourceType: number) {
     const data: any = await request("post", "/alice/resource/prepare_upload", refreshToken, {
-        data: {tenant_id: "5", scene_id: "5", resource_type: resourceType},
-        headers: {"agw-js-conv": "str"},
+        data: { tenant_id: "5", scene_id: "5", resource_type: resourceType },
+        headers: { "agw-js-conv": "str" },
     });
     logger.info(`[UploadAuth] serviceId=${data?.service_id}, upload_host=${data?.upload_host}`);
     if (!data || !data.upload_auth_token)
@@ -849,7 +849,7 @@ async function applyImageUpload(
         FileSize: String(fileSize),
         FileExtension: fileExtension.startsWith(".") ? fileExtension : `.${fileExtension}`,
     } as Record<string, string>;
-    const {authorization, amzDate} = buildAuthorization(
+    const { authorization, amzDate } = buildAuthorization(
         "GET",
         uploadHost,
         "/",
@@ -936,7 +936,7 @@ function sniffImageSize(buf: Buffer, mimeType?: string): { width: number; height
             if (buf.length >= 24) {
                 const width = buf.readUInt32BE(16);
                 const height = buf.readUInt32BE(20);
-                if (width > 0 && height > 0) return {width, height};
+                if (width > 0 && height > 0) return { width, height };
             }
         }
         if ((mimeType && /jpe?g/i.test(mimeType)) || (buf[0] === 0xff && buf[1] === 0xd8)) {
@@ -952,7 +952,7 @@ function sniffImageSize(buf: Buffer, mimeType?: string): { width: number; height
                     if (i + 9 <= buf.length) {
                         const height = buf.readUInt16BE(i + 5);
                         const width = buf.readUInt16BE(i + 7);
-                        if (width > 0 && height > 0) return {width, height};
+                        if (width > 0 && height > 0) return { width, height };
                     }
                     break;
                 }
@@ -969,7 +969,7 @@ function sniffImageSize(buf: Buffer, mimeType?: string): { width: number; height
                     const hMinus1 = (buf[p + 15] | (buf[p + 16] << 8) | (buf[p + 17] << 16)) >>> 0;
                     const width = wMinus1 + 1;
                     const height = hMinus1 + 1;
-                    if (width > 0 && height > 0) return {width, height};
+                    if (width > 0 && height > 0) return { width, height };
                 }
                 p += 8 + size + (size % 2);
             }
@@ -1014,11 +1014,11 @@ async function commitImageUpload(
     };
     const sessionKey = Buffer.from(JSON.stringify(sessionKeyObj)).toString("base64");
 
-    const bodyObj = {SessionKey: sessionKey};
+    const bodyObj = { SessionKey: sessionKey };
     const bodyStr = JSON.stringify(bodyObj);
     const payloadHash = sha256Hex(bodyStr);
 
-    const {authorization, amzDate} = buildAuthorization(
+    const { authorization, amzDate } = buildAuthorization(
         "POST",
         uploadHost,
         "/",
@@ -1028,7 +1028,7 @@ async function commitImageUpload(
         secretKey,
         IMAGEX_REGION,
         IMAGEX_SERVICE,
-        {payloadHash, signContentSha256: true}
+        { payloadHash, signContentSha256: true }
     );
     const url = `https://${uploadHost}/?${canonicalQuery(params)}`;
     const headers = {
@@ -1039,7 +1039,7 @@ async function commitImageUpload(
         authorization,
     } as Record<string, string>;
 
-    const res = await axios.post(url, bodyStr, {headers, timeout: 30000});
+    const res = await axios.post(url, bodyStr, { headers, timeout: 30000 });
     const body = res.data || {};
     const uriStatus = body?.Result?.Results?.[0]?.UriStatus;
 
@@ -1130,11 +1130,11 @@ async function uploadFile(
         const size = isImage ? sniffImageSize(fileData, mimeType) : null;
 
         const ref: any = {
-            file_url: {url: apply.storeUri},
+            file_url: { url: apply.storeUri },
             name: filename,
             ext,
             kind: isImage ? "image" : "file",
-            ...(isImage ? {width: (size?.width || 1), height: (size?.height || 1)} : {}),
+            ...(isImage ? { width: (size?.width || 1), height: (size?.height || 1) } : {}),
         };
         return ref;
     } catch (e: any) {
@@ -1149,7 +1149,7 @@ async function uploadFile(
         // 为图片返回 null，后续会被过滤，不构造 attachments；非图片则允许占位
         if (isImage) return null as any;
         const fallback: any = {
-            file_url: {url: "upload-failed://placeholder"},
+            file_url: { url: "upload-failed://placeholder" },
             name: filename,
             ext,
             kind: "file",
@@ -1165,7 +1165,7 @@ async function uploadFile(
  */
 function checkResult(result: AxiosResponse) {
     if (!result.data) return null;
-    const {code, msg, data} = result.data;
+    const { code, msg, data } = result.data;
     if (!_.isFinite(code)) return result.data;
     if (code === 0) return data;
     throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${msg}`);
@@ -1188,11 +1188,11 @@ async function receiveStream(stream: any): Promise<any> {
             choices: [
                 {
                     index: 0,
-                    message: {role: "assistant", content: ""},
+                    message: { role: "assistant", content: "" },
                     finish_reason: "stop",
                 },
             ],
-            usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
             created: util.unixTimestamp(),
         };
         let isEnd = false;
@@ -1261,7 +1261,7 @@ async function receiveStream(stream: any): Promise<any> {
                             const ori = img?.image_ori?.url;
                             if (key && !emittedImageKeys.has(key)) {
                                 emittedImageKeys.add(key);
-                                images.push({key, preview, ori, thumb: img?.image_thumb?.url});
+                                images.push({ key, preview, ori, thumb: img?.image_thumb?.url });
                             }
                         });
                     }
@@ -1306,21 +1306,21 @@ function createTransStream(stream: any, endCallback?: Function) {
     const emittedImageKeys = new Set<string>();
     const transStream = new PassThrough();
     !transStream.closed &&
-    transStream.write(
-        `data: ${JSON.stringify({
-            id: convId,
-            model: MODEL_NAME,
-            object: "chat.completion.chunk",
-            choices: [
-                {
-                    index: 0,
-                    delta: {role: "assistant", content: ""},
-                    finish_reason: null,
-                },
-            ],
-            created,
-        })}\n\n`
-    );
+        transStream.write(
+            `data: ${JSON.stringify({
+                id: convId,
+                model: MODEL_NAME,
+                object: "chat.completion.chunk",
+                choices: [
+                    {
+                        index: 0,
+                        delta: { role: "assistant", content: "" },
+                        finish_reason: null,
+                    },
+                ],
+                created,
+            })}\n\n`
+        );
     const parser = createParser((event) => {
         try {
             if (event.type !== "event") return;
@@ -1337,7 +1337,7 @@ function createTransStream(stream: any, endCallback?: Function) {
                     choices: [
                         {
                             index: 0,
-                            delta: {role: "assistant", content: ""},
+                            delta: { role: "assistant", content: "" },
                             finish_reason: "stop"
                         },
                     ],
@@ -1363,7 +1363,7 @@ function createTransStream(stream: any, endCallback?: Function) {
                     choices: [
                         {
                             index: 0,
-                            delta: {role: "assistant", content: ""},
+                            delta: { role: "assistant", content: "" },
                             finish_reason: "stop"
                         },
                     ],
@@ -1391,7 +1391,7 @@ function createTransStream(stream: any, endCallback?: Function) {
                         choices: [
                             {
                                 index: 0,
-                                delta: {role: "assistant", content: notice},
+                                delta: { role: "assistant", content: notice },
                                 finish_reason: null,
                             },
                         ],
@@ -1415,7 +1415,7 @@ function createTransStream(stream: any, endCallback?: Function) {
                             choices: [
                                 {
                                     index: 0,
-                                    delta: {role: "assistant", content: md},
+                                    delta: { role: "assistant", content: md },
                                     finish_reason: null,
                                 },
                             ],
@@ -1442,7 +1442,7 @@ function createTransStream(stream: any, endCallback?: Function) {
                     choices: [
                         {
                             index: 0,
-                            delta: {role: "assistant", content: text},
+                            delta: { role: "assistant", content: text },
                             finish_reason: null,
                         },
                     ],
