@@ -790,13 +790,15 @@ function messagesPrepare(messages: any[], refs: any[], isRefConv = false, tools?
 
     const result = [
         {
-            content: JSON.stringify({text: finalContent}),
+            content: (attachments.length > 0 || isRefConv || messages.length >= 2) 
+                ? JSON.stringify({text: finalContent}) 
+                : finalContent,
             content_type: 2001,
             attachments,
             references: [],
         },
     ];
-    logger.info("[messagesPrepare] 最终发送内容: " + JSON.stringify(result));
+    logger.info("[messagesPrepare] 最终发送内容 (已脱敏): " + JSON.stringify(result).substring(0, 500));
     return result;
 }
 
@@ -1341,14 +1343,21 @@ async function receiveStream(stream: any): Promise<any> {
                 if (_.isError(rawResult))
                     throw new Error(`Stream response invalid: ${event.data}`);
                 
-                logger.info(`[receiveStream] 收到事件: type=${rawResult.event_type}, code=${rawResult.code}`);
-                
                 if (rawResult.code)
                     throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${rawResult.code}-${rawResult.message}`);
                 if (rawResult.event_type == 2003) {
                     isEnd = true;
+                    if (rawResult.conversation_id && !data.id) {
+                        data.id = rawResult.conversation_id;
+                    }
                     finalize();
                     return resolve(data);
+                }
+                if (rawResult.event_type == 2005) {
+                    if (rawResult.conversation_id) {
+                        data.id = rawResult.conversation_id;
+                    }
+                    return;
                 }
                 if (rawResult.event_type != 2001)
                     return;
@@ -1541,12 +1550,19 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
             if (_.isError(rawResult))
                 throw new Error(`Stream response invalid: ${event.data}`);
 
-            logger.info(`[createTransStream] 收到事件: type=${rawResult.event_type}, code=${rawResult.code}`);
-
             if (rawResult.code)
                 throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${rawResult.code}-${rawResult.message}`);
             if (rawResult.event_type == 2003) {
+                if (rawResult.conversation_id && !convId) {
+                    convId = rawResult.conversation_id;
+                }
                 flushToolBuffer();
+                return;
+            }
+            if (rawResult.event_type == 2005) {
+                if (rawResult.conversation_id && !convId) {
+                    convId = rawResult.conversation_id;
+                }
                 return;
             }
             if (rawResult.event_type != 2001) {
