@@ -788,7 +788,7 @@ function messagesPrepare(messages: any[], refs: any[], isRefConv = false, tools?
 
     logger.info(`引用资源：files=${fileRefs.length}, images=${imageRefs.length}`);
 
-    return [
+    const result = [
         {
             content: JSON.stringify({text: finalContent}),
             content_type: 2001,
@@ -796,6 +796,8 @@ function messagesPrepare(messages: any[], refs: any[], isRefConv = false, tools?
             references: [],
         },
     ];
+    logger.info("[messagesPrepare] 最终发送内容: " + JSON.stringify(result));
+    return result;
 }
 
 /**
@@ -1338,6 +1340,9 @@ async function receiveStream(stream: any): Promise<any> {
                 const rawResult = _.attempt(() => JSON.parse(event.data));
                 if (_.isError(rawResult))
                     throw new Error(`Stream response invalid: ${event.data}`);
+                
+                logger.info(`[receiveStream] 收到事件: type=${rawResult.event_type}, code=${rawResult.code}`);
+                
                 if (rawResult.code)
                     throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${rawResult.code}-${rawResult.message}`);
                 if (rawResult.event_type == 2003) {
@@ -1535,6 +1540,9 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
             const rawResult = _.attempt(() => JSON.parse(event.data));
             if (_.isError(rawResult))
                 throw new Error(`Stream response invalid: ${event.data}`);
+
+            logger.info(`[createTransStream] 收到事件: type=${rawResult.event_type}, code=${rawResult.code}`);
+
             if (rawResult.code)
                 throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${rawResult.code}-${rawResult.message}`);
             if (rawResult.event_type == 2003) {
