@@ -158,6 +158,46 @@ def test_chat():
     }
     
     run_request("chat/completions", payload, "chat")
+# --- 6. 工具调用测试 ---
+def test_tool_calling():
+    print("\n--- 🔧 6. 工具调用测试 (Tool Calling) ---")
+    
+    payload = {
+        "model": "doubao",
+        "messages": [
+            {
+                "role": "user",
+                "content": "帮我调用 get_weather 工具查一下北京的天气，必须用工具，不要直接说话。"
+            }
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "获取指定城市的天气状况",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "城市名称，例如：北京"
+                            },
+                            "unit": {
+                                "type": "string",
+                                "enum": ["celsius", "fahrenheit"]
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ],
+        "tool_choice": "auto",
+        "stream": False
+    }
+    
+    run_request("chat/completions", payload, "chat")
 
 # --- 通用请求发送 ---
 def run_request(endpoint, payload, prefix):
@@ -189,16 +229,18 @@ def main():
         print("3. 文生视频 (Text -> Video)")
         print("4. 图生视频 (Image -> Video)")
         print("5. 对话聊天 (Chat completions)")
-        print("6. 退出")
+        print("6. 工具调用测试 (Tool Calling)")
+        print("7. 退出")
         
-        choice = input("\n👉 请选择功能 (1-6): ")
+        choice = input("\n👉 请选择功能 (1-7): ")
         
         if choice == '1': test_text_to_image()
         elif choice == '2': test_image_to_image()
         elif choice == '3': test_text_to_video()
         elif choice == '4': test_image_to_video()
         elif choice == '5': test_chat()
-        elif choice == '6': 
+        elif choice == '6': test_tool_calling()
+        elif choice == '7': 
             print("👋 再见")
             break
         else:
