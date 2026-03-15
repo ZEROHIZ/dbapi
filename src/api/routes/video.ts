@@ -3,7 +3,9 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import Response from '@/lib/response/Response.ts';
 import video from '@/api/controllers/video.ts';
+import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import AccountManager from '@/lib/account-manager.ts';
+
 
 interface VideoCompletionRequestBody {
     prompt: string;
@@ -63,7 +65,12 @@ export default {
             };
 
             try {
+                if (isPooled && account.type === 'openai') {
+                    return await openaiProxy.proxyVideo(request.body, account);
+                }
+
                 if (stream) {
+
                     const s = await video.createVideoCompletionStream(videoParams, account, assistantId);
                     if (isPooled) {
                         const token = account.token;
@@ -83,8 +90,14 @@ export default {
                     if (isPooled) AccountManager.releaseToken(account.token);
                     return result;
                 }
-            } catch (err) {
-                if (isPooled) AccountManager.releaseToken(account?.token || account);
+            } catch (err: any) {
+                if (isPooled && account) {
+                    const statusCode = err.status || err.statusCode || err.response?.status;
+                    if (statusCode) {
+                        AccountManager.applyResponsePolicy(account.id, statusCode);
+                    }
+                    AccountManager.releaseToken(account.token);
+                }
                 throw err;
             }
         }

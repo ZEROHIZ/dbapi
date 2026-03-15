@@ -11,6 +11,9 @@ import {createParser} from "eventsource-parser";
 import logger from "@/lib/logger.ts";
 import util from "@/lib/util.ts";
 import { logRequest } from "@/lib/debug-logger.ts";
+import AccountManager from "@/lib/account-manager.ts";
+import TokenCounter from "@/lib/token-counter.ts";
+
 
 // 模型名称
 const MODEL_NAME = "doubao";
@@ -376,6 +379,23 @@ async function createCompletion(
             `Stream has completed transfer ${util.timestamp() - streamStartTime}ms`
         );
 
+        // 记录用量
+        const promptText = messages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join("");
+        const completionText = answer.choices[0].message.content;
+        const promptTokens = TokenCounter.estimateTokens(promptText);
+        const completionTokens = TokenCounter.estimateTokens(completionText);
+        
+        answer.usage = {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: promptTokens + completionTokens
+        };
+
+        if (account && account.id) {
+            AccountManager.updateAccountUsage(account.id, "chat", promptTokens, completionTokens);
+            TokenCounter.recordUsage(account.id, promptTokens, completionTokens);
+        }
+
         removeConversation(answer.id, context).catch(
             (err) => !refConvId && console.error('移除会话失败：', err)
         );
@@ -492,14 +512,16 @@ async function createCompletionStream(
         }
 
         const streamStartTime = util.timestamp();
+        const promptText = messages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join("");
         return createTransStream(response.data, (convId: string) => {
+
             logger.success(
                 `Stream has completed transfer ${util.timestamp() - streamStartTime}ms`
             );
             removeConversation(convId, context).catch(
                 (err) => !refConvId && console.error(err)
             );
-        }, !!(tools && tools.length));
+        }, !!(tools && tools.length), account, promptText);
     })().catch((err) => {
         if (retryCount < MAX_RETRY_COUNT) {
             logger.error(`Stream response error: ${err.stack}`);
@@ -1435,7 +1457,7 @@ async function receiveStream(stream: any): Promise<any> {
  * @param stream 消息流
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function, hasTools = false) {
+function createTransStream(stream: any, endCallback?: Function, hasTools = false, account?: any, promptText = "") {
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
@@ -1444,7 +1466,9 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
     const transStream = new PassThrough();
     // 当有 tools 时，缓冲所有文本以在结束时检测 tool_call
     let toolBuffer = "";
+    let completionText = "";
     const isBuffering = hasTools;
+
     !transStream.closed &&
     transStream.write(
         `data: ${JSON.stringify({
@@ -1464,7 +1488,9 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
 
     // 流结束时的统一处理函数
     const flushToolBuffer = () => {
+        let finalCompletionText = completionText;
         if (isBuffering && toolBuffer) {
+            finalCompletionText = toolBuffer; // 如果缓冲了，则用缓冲的内容
             const toolResult = parseToolCalls(toolBuffer);
             if (toolResult) {
                 // 检测到工具调用，发送 tool_calls 格式的 chunk
@@ -1499,7 +1525,16 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
                         created,
                     })}\n\n`);
                 }
-                // 发送结束 chunk，finish_reason 为 tool_calls
+                
+                // 记录用量并发送 usage
+                const promptTokens = TokenCounter.estimateTokens(promptText);
+                const completionTokens = TokenCounter.estimateTokens(finalCompletionText);
+                if (account && account.id) {
+                    AccountManager.updateAccountUsage(account.id, "chat", promptTokens, completionTokens);
+                    TokenCounter.recordUsage(account.id, promptTokens, completionTokens);
+                }
+
+                // 发送结束 chunk，finish_reason 为 tool_calls，包含 usage
                 transStream.write(`data: ${JSON.stringify({
                     id: convId,
                     model: MODEL_NAME,
@@ -1509,6 +1544,11 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
                         delta: {},
                         finish_reason: "tool_calls",
                     }],
+                    usage: {
+                        prompt_tokens: promptTokens,
+                        completion_tokens: completionTokens,
+                        total_tokens: promptTokens + completionTokens
+                    },
                     created,
                 })}\n\n`);
                 !transStream.closed && transStream.end("data: [DONE]\n\n");
@@ -1529,7 +1569,16 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
                 })}\n\n`);
             }
         }
-        // 常规结束
+        
+        // 记录用量
+        const promptTokens = TokenCounter.estimateTokens(promptText);
+        const completionTokens = TokenCounter.estimateTokens(finalCompletionText);
+        if (account && account.id) {
+            AccountManager.updateAccountUsage(account.id, "chat", promptTokens, completionTokens);
+            TokenCounter.recordUsage(account.id, promptTokens, completionTokens);
+        }
+
+        // 常规结束，带上 usage
         transStream.write(`data: ${JSON.stringify({
             id: convId,
             model: MODEL_NAME,
@@ -1539,6 +1588,11 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
                 delta: {role: "assistant", content: ""},
                 finish_reason: "stop",
             }],
+            usage: {
+                prompt_tokens: promptTokens,
+                completion_tokens: completionTokens,
+                total_tokens: promptTokens + completionTokens
+            },
             created,
         })}\n\n`);
         !transStream.closed && transStream.end("data: [DONE]\n\n");
@@ -1640,7 +1694,9 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
                 text = message.content;
             }
             if (text) {
+                completionText += text;
                 if (isBuffering) {
+
                     // 有 tools 时缓冲文本，等待流结束后统一处理
                     toolBuffer += text;
                 } else {

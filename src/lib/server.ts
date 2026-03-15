@@ -4,6 +4,8 @@ import koaRange from 'koa-range';
 import koaCors from "koa2-cors";
 import koaBody from 'koa-body';
 import _ from 'lodash';
+import path from 'path';
+import fs from 'fs-extra';
 
 import Exception from './exceptions/Exception.ts';
 import Request from './request/Request.ts';
@@ -70,18 +72,52 @@ class Server {
             logger.info(`Route ${config.service.urlPrefix || ""}${prefix} attached`);
         });
         this.app.use(this.router.routes());
-        this.app.use((ctx: any) => {
+        
+        // 静态资源与错误路由拦截
+        this.app.use(async (ctx: any) => {
             const request = new Request(ctx);
-            logger.debug(`-> ${ctx.request.method} ${ctx.request.url} request is not supported - ${request.remoteIP || "unknown"}`);
-            // const failureBody = new FailureBody(new Exception(EX.SYSTEM_NOT_ROUTE_MATCHING, "Request is not supported"));
-            // const response = new Response(failureBody);
-            const message = `[请求有误]: 正确请求为 POST -> /v1/chat/completions，当前请求为 ${ctx.request.method} -> ${ctx.request.url} 请纠正`;
-            logger.warn(message);
-            const failureBody = new FailureBody(new Error(message));
-            const response = new Response(failureBody);
-            response.injectTo(ctx);
+            const url = ctx.request.url;
+
+            // 1. 简单的静态资源支持 (如果不匹配任何路由)
+            if (ctx.method === 'GET') {
+                const publicPath = path.join(process.cwd(), 'public', url.split('?')[0]);
+                if (await fs.pathExists(publicPath) && (await fs.stat(publicPath)).isFile()) {
+                    const content = await fs.readFile(publicPath);
+                    const ext = path.extname(publicPath).toLowerCase();
+                    const mimeTypes: any = {
+                        '.html': 'text/html',
+                        '.js': 'text/javascript',
+                        '.css': 'text/css',
+                        '.json': 'application/json',
+                        '.png': 'image/png',
+                        '.jpg': 'image/jpeg',
+                        '.gif': 'image/gif',
+                        '.svg': 'image/svg+xml',
+                        '.ico': 'image/x-icon'
+                    };
+                    ctx.type = mimeTypes[ext] || 'application/octet-stream';
+                    ctx.body = content;
+                    return;
+                }
+            }
+
+            // 2. 对于 /v1 开头的请求，但未匹配路由的，给出明确提醒
+            if (url.startsWith('/v1/')) {
+                const message = `[API 请求有误]: 正确请求为 POST -> /v1/chat/completions，当前请求为 ${ctx.request.method} -> ${ctx.request.url} 请查阅文档确认路径及方法。`;
+                logger.warn(message);
+                const failureBody = new FailureBody(new Error(message));
+                const response = new Response(failureBody);
+                response.injectTo(ctx);
+                return;
+            }
+
+            // 3. 其他未匹配路由且不是 API 的请求，返回 404
+            logger.debug(`-> ${ctx.request.method} ${ctx.request.url} 404 Not Found - ${request.remoteIP || "unknown"}`);
+            ctx.status = 404;
+            ctx.body = "Not Found";
+            
             if(config.system.requestLog)
-                logger.info(`<- ${request.method} ${request.url} ${response.time - request.time}ms`);
+                logger.info(`<- ${request.method} ${request.url} 404`);
         });
     }
 

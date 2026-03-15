@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import AccountManager from '@/lib/account-manager.ts';
 
 export default {
 
@@ -6,14 +7,9 @@ export default {
 
     get: {
         '/models': async () => {
+            const models = AccountManager.getAvailableModels();
             return {
-                "data": [
-                    {
-                        "id": "doubao",
-                        "object": "model",
-                        "owned_by": "doubao-free-api"
-                    }
-                ]
+                "data": models
             };
         }
 

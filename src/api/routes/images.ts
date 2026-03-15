@@ -3,7 +3,9 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import Response from '@/lib/response/Response.ts';
 import images from '@/api/controllers/images.ts';
+import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import AccountManager from '@/lib/account-manager.ts';
+
 
 // 定义图片生成请求体的类型（可选，增强类型提示）
 interface ImageCompletionRequestBody {
@@ -74,9 +76,14 @@ export default {
                 referenceImage // 新增参考图字段
             };
 
-            // 6. 调用生成方法（传递referenceImage）
+            // 6. 调用生成方法
             try {
+                if (isPooled && account.type === 'openai') {
+                    return await openaiProxy.proxyImage(request.body, account);
+                }
+
                 if (stream) {
+
                     const s = await images.createImageCompletionStream(imageParams, account, assistantId);
                     if (isPooled) {
                         const token = account.token;
@@ -96,8 +103,14 @@ export default {
                     if (isPooled) AccountManager.releaseToken(account.token);
                     return result;
                 }
-            } catch (err) {
-                if (isPooled) AccountManager.releaseToken(account?.token || account);
+            } catch (err: any) {
+                if (isPooled && account) {
+                    const statusCode = err.status || err.statusCode || err.response?.status;
+                    if (statusCode) {
+                        AccountManager.applyResponsePolicy(account.id, statusCode);
+                    }
+                    AccountManager.releaseToken(account.token);
+                }
                 throw err;
             }
         }

@@ -203,17 +203,17 @@ class Logger {
     error(...params) {
         const content = new LogText(Logger.Level.Error, ...params).toString();
         console.error(content[Logger.LevelColor[Logger.Level.Error]]);
-        this.#writer.push(content);
+        this.#writer.push(content + "\n");
     }
 
     fatal(...params) {
         const content = new LogText(Logger.Level.Fatal, ...params).toString();
         console.error(content[Logger.LevelColor[Logger.Level.Fatal]]);
-        this.#writer.push(content);
+        this.#writer.push(content + "\n");
     }
 
-    destory() {
-        this.#writer.destory();
+    destroy() {
+        this.#writer.flush();
     }
 
 }

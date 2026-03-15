@@ -23,6 +23,8 @@ class Environment {
     port?: number;
     /** 包参数 */
     package: any;
+    /** 管理密码 */
+    adminPassword?: string;
 
     constructor(options: any = {}) {
         const { cmdArgs, envVars, package: _package } = options;
@@ -32,6 +34,7 @@ class Environment {
         this.name = cmdArgs.name || envVars.SERVER_NAME || undefined;
         this.host = cmdArgs.host || envVars.SERVER_HOST || undefined;
         this.port = Number(cmdArgs.port || envVars.SERVER_PORT) ? Number(cmdArgs.port || envVars.SERVER_PORT) : undefined;
+        this.adminPassword = envVars.ADMIN_PASSWORD || undefined;
         this.package = _package;
     }
 

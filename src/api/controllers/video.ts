@@ -14,6 +14,8 @@ import util from "@/lib/util.ts";
 import { logRequest } from "@/lib/debug-logger.ts";
 import { appendDumpText, dumpObject } from "@/lib/debug-dumper.ts";
 import images from "@/api/controllers/images.ts";
+import TokenCounter from "@/lib/token-counter.ts";
+import AccountManager from "@/lib/account-manager.ts";
 
 // 模型名称
 const MODEL_NAME = "doubao-video";
@@ -440,6 +442,13 @@ async function createVideoCompletion(
         // 2. 轮询获取真实视频地址
         const videos = await pollForVideoResult(convId, context);
         
+        // 记录用量
+        const accountId = (account as any).id;
+        if (accountId) {
+             AccountManager.updateAccountUsage(accountId, 'video', 0, 0);
+             TokenCounter.recordUsage(accountId, 0, 0);
+        }
+        
         // 3. 更新返回结果
         if (videos.length > 0) {
              const md = videos.map((v, i) => {
@@ -584,12 +593,18 @@ async function createVideoCompletionStream(
             logger.success(
                 `流式视频生成传输完成 ${util.timestamp() - streamStartTime}ms`
             );
+            // 记录用量
+            const accountId = (account as any).id;
+            if (accountId) {
+                 AccountManager.updateAccountUsage(accountId, 'video', 0, 0);
+                 TokenCounter.recordUsage(accountId, 0, 0);
+            }
             /* 调试阶段暂时不删除会话
             removeConversation(convId, context).catch(
                 (err) => console.error(err)
             );
             */
-        }, context);
+        }, context, account);
     })().catch((err) => {
         if (retryCount < MAX_RETRY_COUNT) {
             logger.error(`流式视频生成响应错误: ${err.stack}`);
@@ -619,7 +634,6 @@ function checkResult(result: AxiosResponse) {
 /**
  * 从流接收完整的消息内容
  */
-import fs from "fs"; // 使用原生 fs 进行同步写入
 
 async function receiveStream(stream: any): Promise<any> {
     const logPath = path.join(process.cwd(), "debug_video_trace.log");
@@ -649,6 +663,11 @@ async function receiveStream(stream: any): Promise<any> {
                 },
             ],
             created: util.unixTimestamp(),
+            usage: {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0
+            },
         };
         let isEnd = false;
         const finalize = () => {
@@ -665,12 +684,9 @@ async function receiveStream(stream: any): Promise<any> {
         };
 
         const parser = createParser((event) => {
-            const rawStr = event.data;
             try {
                 if (event.type !== "event" || isEnd) return;
-                
-                // 记录每一个进入解析器的事件
-                fs.appendFileSync(logPath, `[EVENT] ID: ${event.id}, Type: ${rawStr.includes('event_type":2001') ? '2001' : 'other'}, Data Snippet: ${rawStr.slice(0, 150)}...\n`);
+                const rawStr = (event as any).data;
 
                 // --- 1. 暴力正则提取 ID (增强版，支持转义引号) ---
                 if (!data.id && rawStr) {
@@ -780,8 +796,9 @@ async function receiveStream(stream: any): Promise<any> {
 /**
  * 创建转换流 (SSE)
  */
-function createTransStream(stream: any, endCallback?: Function, context?: AccountContext) {
+function createTransStream(stream: any, endCallback?: Function, context?: AccountContext, account?: any) {
     let convId = "";
+    let usageSent = false;
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
     const emittedKeys = new Set<string>();
@@ -796,6 +813,21 @@ function createTransStream(stream: any, endCallback?: Function, context?: Accoun
             await Promise.all(pendingTasks);
         } catch (e) {
             logger.error(`[Video] 等待异步任务失败: ${e}`);
+        }
+        if (!usageSent && !transStream.closed) {
+             transStream.write(`data: ${JSON.stringify({
+                id: convId,
+                model: MODEL_NAME,
+                object: "chat.completion.chunk",
+                choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+                usage: {
+                   prompt_tokens: 0,
+                   completion_tokens: 0,
+                   total_tokens: 0
+                },
+                created,
+             })}\n\n`);
+             usageSent = true;
         }
         if (!transStream.closed) {
              transStream.end("data: [DONE]\n\n");

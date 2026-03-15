@@ -11,6 +11,8 @@ import {createParser} from "eventsource-parser";
 import logger from "@/lib/logger.ts";
 import util from "@/lib/util.ts";
 import { logRequest } from "@/lib/debug-logger.ts";
+import TokenCounter from "@/lib/token-counter.ts";
+import AccountManager from "@/lib/account-manager.ts";
 
 // 模型名称
 const MODEL_NAME = "doubao";
@@ -318,6 +320,18 @@ async function createImageCompletion(
             `图片生成流传输完成 ${util.timestamp() - streamStartTime}ms`
         );
 
+        // 记录用量
+        const accountId = (account as any).id;
+        if (accountId) {
+            AccountManager.updateAccountUsage(accountId, 'image', 0, 0);
+            TokenCounter.recordUsage(accountId, 0, 0);
+        }
+        answer.usage = {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0
+        };
+
         removeConversation(answer.id, context).catch(
             (err) => console.error('移除图片生成会话失败：', err)
         );
@@ -454,10 +468,16 @@ async function createImageCompletionStream(
             logger.success(
                 `流式图片生成传输完成 ${util.timestamp() - streamStartTime}ms`
             );
+            // 记录用量
+            const accountId = (account as any).id;
+            if (accountId) {
+                AccountManager.updateAccountUsage(accountId, 'image', 0, 0);
+                TokenCounter.recordUsage(accountId, 0, 0);
+            }
             removeConversation(convId, context).catch(
                 (err) => console.error(err)
             );
-        });
+        }, account);
     })().catch((err) => {
         if (retryCount < MAX_RETRY_COUNT) {
             logger.error(`流式图片生成响应错误: ${err.stack}`);
@@ -1113,16 +1133,14 @@ async function receiveStream(stream: any): Promise<any> {
  * @param stream 消息流
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function) {
+function createTransStream(stream: any, endCallback?: Function, account?: any) {
     let convId = "";
     let temp = Buffer.from('');
-    // 消息创建时间
     const created = util.unixTimestamp();
-    // 用于图片生成的提示与去重
-    let imageNoticeSent = false;
     const emittedImageKeys = new Set<string>();
-    // 创建转换流
     const transStream = new PassThrough();
+    let imageNoticeSent = false;
+    let usageSent = false;
     !transStream.closed &&
     transStream.write(
         `data: ${JSON.stringify({
@@ -1291,7 +1309,30 @@ function createTransStream(stream: any, endCallback?: Function) {
     );
     stream.once(
         "close",
-        () => !transStream.closed && transStream.end("data: [DONE]\n\n")
+        () => {
+            if (!usageSent && !transStream.closed) {
+                transStream.write(`data: ${JSON.stringify({
+                    id: convId,
+                    model: MODEL_NAME,
+                    object: "chat.completion.chunk",
+                    choices: [
+                        {
+                            index: 0,
+                            delta: {},
+                            finish_reason: "stop",
+                        },
+                    ],
+                    usage: {
+                        prompt_tokens: 0,
+                        completion_tokens: 0,
+                        total_tokens: 0
+                    },
+                    created,
+                })}\n\n`);
+                usageSent = true;
+            }
+            !transStream.closed && transStream.end("data: [DONE]\n\n");
+        }
     );
     return transStream;
 }

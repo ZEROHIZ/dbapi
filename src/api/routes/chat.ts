@@ -3,8 +3,10 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import Response from '@/lib/response/Response.ts';
 import chat from '@/api/controllers/chat.ts';
+import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import logger from '@/lib/logger.ts';
 import AccountManager from '@/lib/account-manager.ts';
+
 
 export default {
 
@@ -37,7 +39,12 @@ export default {
             const assistantId = /^[a-z0-9]{24,}$/.test(model) ? model : undefined
 
             try {
+                if (isPooled && account.type === 'openai') {
+                    return await openaiProxy.proxyChat(request.body, account);
+                }
+
                 if (stream) {
+
                     const s = await chat.createCompletionStream(messages, account, assistantId, convId, 0, tools);
                     
                     // 如果是池化账号，在流结束时释放
@@ -60,8 +67,14 @@ export default {
                     if (isPooled) AccountManager.releaseToken(account.token);
                     return res;
                 }
-            } catch (err) {
-                if (isPooled) AccountManager.releaseToken(account?.token || account);
+            } catch (err: any) {
+                if (isPooled && account) {
+                    const statusCode = err.status || err.statusCode || err.response?.status;
+                    if (statusCode) {
+                        AccountManager.applyResponsePolicy(account.id, statusCode);
+                    }
+                    AccountManager.releaseToken(account.token);
+                }
                 throw err;
             }
         }

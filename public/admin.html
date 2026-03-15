@@ -1,204 +1,357 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doubao API 管理后台</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    <title>豆包 API 管理后台</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#6366f1',
+                            hover: '#4f46e5',
+                            light: '#818cf8',
+                            dark: '#4338ca'
+                        },
+                        secondary: '#64748b',
+                        accent: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        surface: {
+                            light: '#ffffff',
+                            dark: '#0f172a'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        display: ['DM Sans', 'sans-serif'],
+                    },
+                    backdropBlur: {
+                        xs: '2px',
+                    }
+                }
+            }
         }
-
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-            margin-bottom: 20px;
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body { @apply bg-slate-50 text-slate-900 transition-colors duration-300 font-sans; }
+            .dark body { @apply bg-[#0b0f1a] text-slate-100; }
         }
-
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
-        }
-
-        .status-idle {
-            background-color: #28a745;
-            box-shadow: 0 0 8px #28a745;
-        }
-
-        .status-busy {
-            background-color: #dc3545;
-            box-shadow: 0 0 8px #dc3545;
-        }
-
-        .status-cooldown {
-            background-color: #ffc107;
-            box-shadow: 0 0 8px #ffc107;
-        }
-
-        .token-text {
-            font-family: monospace;
-            color: #6c757d;
-            font-size: 0.85em;
-        }
-
-        .stats-val {
-            font-size: 1.8rem;
-            font-weight: bold;
-        }
-
-        .usage-badge {
-            font-size: 0.8em;
-            margin-right: 8px;
-            min-width: 80px;
-            display: inline-block;
-        }
-
-        [v-cloak] {
-            display: none;
+        @layer components {
+            .glass-card {
+                @apply bg-white/80 border border-slate-200/50 backdrop-blur-md rounded-2xl shadow-sm;
+            }
+            .dark .glass-card {
+                @apply bg-slate-900/40 border-slate-800/50 shadow-2xl;
+            }
+            .nav-link {
+                @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-500 hover:text-primary hover:bg-primary/5 cursor-pointer;
+            }
+            .nav-link.active {
+                @apply bg-primary text-white shadow-lg shadow-primary/20 hover:text-white hover:bg-primary;
+            }
+            .dark .nav-link:not(.active) {
+                @apply text-slate-400 hover:text-white hover:bg-white/5;
+            }
+            .btn-indigo {
+                @apply bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-xl transition-all duration-200 shadow-lg shadow-primary/20 flex items-center justify-center gap-2 font-medium;
+            }
+            .input-field {
+                @apply w-full bg-slate-100 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/40 transition-all outline-none text-sm;
+            }
+            .dark .input-field {
+                @apply bg-slate-800/50 text-white placeholder-slate-500;
+            }
+            .status-badge {
+                @apply px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1.5;
+            }
+            /* Custom Scrollbar */
+            ::-webkit-scrollbar { width: 6px; height: 6px; }
+            ::-webkit-scrollbar-track { @apply bg-transparent; }
+            ::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+            .dark ::-webkit-scrollbar-thumb { @apply bg-slate-700; }
+            [v-cloak] { display: none !important; }
         }
     </style>
 </head>
 
-<body>
-
-    <div id="app" class="container py-4" v-cloak>
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2 class="mb-0"><i class="bi bi-robot me-2"></i>Doubao API 管理</h2>
-                <small class="text-muted">版本: {{ version }}</small>
+<body class="antialiased">
+    <div id="app" v-cloak class="min-h-screen flex">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="fixed inset-y-0 left-0 w-64 glass-card m-4 hidden lg:flex flex-col z-50">
+            <div class="p-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
+                        <i data-lucide="zap" class="text-white w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-display font-bold text-lg leading-tight">豆包 API</h1>
+                        <p class="text-[10px] text-slate-500 tracking-[0.2em] font-bold uppercase">管理中心</p>
+                    </div>
+                </div>
             </div>
-            <div>
-                <button @click="resetAllUsage" class="btn btn-outline-danger btn-sm me-2">
-                    <i class="bi bi-arrow-counterclockwise"></i> 重置所有今日统计
+
+            <nav class="flex-1 px-4 space-y-1">
+                <div v-for="item in navItems" :key="item.id" 
+                     @click="activePage = item.id"
+                     :class="['nav-link', activePage === item.id ? 'active' : '']">
+                    <i :data-lucide="item.icon" class="w-5 h-5"></i>
+                    <span class="font-medium font-display">{{ item.name }}</span>
+                </div>
+            </nav>
+
+            <div class="p-4 border-t border-slate-200/50 dark:border-slate-800/50">
+                <div class="bg-primary/5 dark:bg-primary/10 rounded-2xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">存储使用量</span>
+                        <span class="text-xs font-medium text-primary">{{ storagePercent }}%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-primary h-full rounded-full transition-all duration-1000" :style="{ width: storagePercent + '%' }"></div>
+                    </div>
+                </div>
+                <button @click="logout" class="w-full mt-4 flex items-center gap-3 px-4 py-3 rounded-xl text-danger hover:bg-danger/5 transition-colors">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                    <span class="font-medium font-display">登出</span>
                 </button>
-                <button @click="fetchData" class="btn btn-primary btn-sm">
-                    <i class="bi bi-arrow-repeat"></i> 刷新数据
-                </button>
             </div>
-        </div>
+        </aside>
 
-        <!-- 统计卡片 -->
-        <div class="row text-center">
-            <div class="col-md-3">
-                <div class="card p-3">
-                    <div class="text-muted small mb-1">活跃账号 / 总数</div>
-                    <div class="stats-val">{{ stats.enabledAccounts }} / {{ stats.totalAccounts }}</div>
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-[280px] p-4 lg:p-8 flex flex-col gap-6">
+            
+            <!-- Header Overlay (Mobile) -->
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-2xl font-display font-bold text-slate-800 dark:text-white">{{ currentPageTitle }}</h2>
+                    <p class="text-sm text-slate-500">{{ currentPageDesc }}</p>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card p-3">
-                    <div class="text-muted small mb-1">状态 (空闲/忙碌/冷却)</div>
-                    <div class="d-flex justify-content-center align-items-center stats-val">
-                        <span class="text-success">{{ stats.statusCounts.idle }}</span>
-                        <span class="mx-2 text-muted">/</span>
-                        <span class="text-danger">{{ stats.statusCounts.busy }}</span>
-                        <span class="mx-2 text-muted">/</span>
-                        <span class="text-warning">{{ stats.statusCounts.cooldown }}</span>
+                <div class="flex items-center gap-3">
+                    <button @click="toggleTheme" class="w-10 h-10 glass-card flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i :data-lucide="isDark ? 'sun' : 'moon'" class="w-5 h-5"></i>
+                    </button>
+                    <button @click="fetchData" :class="{'animate-spin': loading}" class="w-10 h-10 glass-card flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                    </button>
+                    <div class="hidden sm:flex items-center gap-2 glass-card px-4 py-2">
+                        <div class="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+                        <span class="text-xs font-medium">{{ version }}</span>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card p-3">
-                    <div class="text-muted small mb-1">当前队列 (请求数)</div>
-                    <div class="stats-val text-primary">{{ stats.queue }}</div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card p-3">
-                    <div class="text-muted small mb-1">今日剩余额度 (图/视)</div>
-                    <div class="stats-val text-info" style="font-size: 1.4rem">
-                        <i class="bi bi-image"></i> {{ stats.totalRemainingImage }}
-                        <span class="mx-1">/</span>
-                        <i class="bi bi-camera-video"></i> {{ stats.totalRemainingVideo }}
-                    </div>
-                </div>
-            </div>
-        </div>
+            </header>
 
-        <div class="row">
-            <!-- 账号列表 -->
-            <div class="col-lg-8">
-                <div class="card">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="mb-0">账号池管理</h5>
+            <!-- Dashboard Content -->
+            <div v-if="activePage === 'dashboard'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Stat Cards -->
+                <div class="glass-card p-6 flex flex-col gap-4">
+                    <div class="flex items-center justify-between">
+                        <div class="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center">
+                            <i data-lucide="users" class="text-indigo-500 w-5 h-5"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">活跃 / 总数</span>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width: 100px;">状态</th>
-                                    <th>账号信息</th>
-                                    <th>今日用量 (已用/总额)</th>
-                                    <th style="width: 160px;">操作</th>
+                    <div>
+                        <div class="text-3xl font-display font-bold">{{ stats.enabledAccounts }} / {{ stats.totalAccounts }}</div>
+                        <p class="text-xs text-slate-500">账号池总量</p>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6 flex flex-col gap-4">
+                    <div class="flex items-center justify-between">
+                        <div class="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center">
+                            <i data-lucide="check-circle" class="text-accent w-5 h-5"></i>
+                        </div>
+                        <div class="flex gap-2">
+                             <div class="w-8 h-4 rounded bg-success/10 text-success text-[10px] flex items-center justify-center font-bold">{{stats.statusCounts.idle}}</div>
+                             <div class="w-8 h-4 rounded bg-warning/10 text-warning text-[10px] flex items-center justify-center font-bold">{{stats.statusCounts.cooldown}}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-3xl font-display font-bold">{{ stats.statusCounts.idle }}</div>
+                        <p class="text-xs text-slate-500">空闲可用账号</p>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6 flex flex-col gap-4">
+                    <div class="flex items-center justify-between">
+                        <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                            <i data-lucide="activity" class="text-primary w-5 h-5"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">排队</span>
+                    </div>
+                    <div>
+                        <div class="text-3xl font-display font-bold text-primary">{{ stats.queue }}</div>
+                        <p class="text-xs text-slate-500">积压请求数</p>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6 flex flex-col gap-4">
+                    <div class="flex items-center justify-between">
+                        <div class="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center">
+                            <i data-lucide="database" class="text-orange-500 w-5 h-5"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">Tokens</span>
+                    </div>
+                    <div>
+                        <div class="text-3xl font-display font-bold">{{ formatNumber(stats.totalTokens || 0) }}</div>
+                        <p class="text-xs text-slate-500">今日预计消耗</p>
+                    </div>
+                </div>
+
+                <!-- Charts Placeholders -->
+                <div class="col-span-full lg:col-span-3 glass-card p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h4 class="font-display font-bold">Token 消耗趋势</h4>
+                        <div class="flex gap-2">
+                           <button class="text-xs px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 font-medium">按天</button>
+                           <button class="text-xs px-3 py-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium">按周</button>
+                        </div>
+                    </div>
+                    <div class="h-[250px] flex items-end gap-3 pb-8 px-2">
+                        <div v-for="(h, i) in tokenChartData" :key="i" class="flex-1 group relative">
+                             <div class="bg-primary/20 group-hover:bg-primary/40 transition-all rounded-t-lg w-full" :style="{height: h + '%'}"></div>
+                             <div class="bg-primary rounded-t-lg w-full absolute bottom-0" :style="{height: (h * 0.4) + '%'}"></div>
+                             <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{{h}}k tokens</div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-4 px-2">
+                         <span v-for="d in ['周一', '周二', '周三', '周四', '周五', '周六', '周日']" :key="d" class="text-[10px] font-bold text-slate-400 uppercase">{{d}}</span>
+                    </div>
+                </div>
+
+                <!-- Distribution -->
+                <div class="col-span-full lg:col-span-1 glass-card p-6">
+                    <h4 class="font-display font-bold mb-6">请求混合比例</h4>
+                    <div class="space-y-6">
+                        <div v-for="item in requestMix" :key="item.name">
+                            <div class="flex justify-between items-center text-xs mb-2">
+                                <span class="font-bold uppercase tracking-wider text-slate-400">{{ item.name }}</span>
+                                <span class="font-display font-bold">{{ item.value }}%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full" :class="item.color" :style="{ width: item.value + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accounts Content -->
+            <div v-if="activePage === 'accounts'" class="flex flex-col gap-6">
+                <!-- Toolbar -->
+                <div class="flex items-center justify-between">
+                    <div class="flex gap-4 flex-1">
+                        <div class="relative max-w-sm flex-1">
+                             <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                             <input v-model="searchQuery" type="search" placeholder="搜索账号..." class="input-field pl-11">
+                        </div>
+                        <select v-model="typeFilter" class="glass-card px-4 py-2 text-sm border-none outline-none cursor-pointer">
+                            <option value="all">所有类型</option>
+                            <option value="doubao">豆包 (原生)</option>
+                            <option value="openai">OpenAI (代理)</option>
+                        </select>
+                    </div>
+                    <button @click="openModal('add')" class="btn-indigo">
+                        <i data-lucide="plus"></i>
+                        <span>添加账号</span>
+                    </button>
+                </div>
+
+                <!-- Accounts Table -->
+                <div class="glass-card overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="border-b border-slate-200/50 dark:border-slate-800/50">
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">账号</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">类型 / 状态</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">权重 / 限制</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <tr v-for="acc in accounts" :key="acc.id">
-                                    <td>
-                                        <span :class="['status-dot', 'status-' + acc.status]"
-                                            :title="acc.status"></span>
-                                        <small class="text-capitalize">{{ acc.status }}</small>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold">{{ acc.name }}</div>
-                                        <div class="token-text">{{ acc.token.substring(0, 10) }}...{{
-                                            acc.token.slice(-5) }}</div>
-                                    </td>
-                                    <td>
-                                        <div class="mb-1">
-                                            <i class="bi bi-chat-dots text-secondary me-1" title="对话"></i>
-                                            <span class="text-muted small">
-                                                {{ acc.usageChat }} / {{ acc.limitChat === -1 ? '∞' : acc.limitChat }}
-                                            </span>
-                                        </div>
-                                        <div class="mb-1">
-                                            <i class="bi bi-image text-primary me-1" title="生图"></i>
-                                            <span class="small"
-                                                :class="acc.usageImage >= acc.limitImage ? 'text-danger fw-bold' : ''">
-                                                {{ acc.usageImage }} / {{ acc.limitImage }}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <i class="bi bi-camera-video text-danger me-1" title="视频"></i>
-                                            <span class="small"
-                                                :class="acc.usageVideo >= acc.limitVideo ? 'text-danger fw-bold' : ''">
-                                                {{ acc.usageVideo }} / {{ acc.limitVideo }}
-                                            </span>
+                            <tbody class="divide-y divide-slate-200/50 dark:divide-slate-800/50">
+                                <tr v-for="acc in filteredAccounts" :key="acc.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center font-display font-bold text-primary group-hover:scale-110 transition-transform">
+                                                {{ (acc.name || 'A').charAt(0).toUpperCase() }}
+                                            </div>
+                                            <div>
+                                                <div class="font-display font-bold">{{ acc.name || '未命名账号' }}</div>
+                                                <div class="text-[10px] text-slate-500 font-mono tracking-tighter">{{ acc.id }}</div>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <button @click="editAccount(acc)" class="btn btn-outline-primary btn-sm"
-                                                title="编辑">
-                                                <i class="bi bi-pencil"></i>
+                                    <td class="px-6 py-4">
+                                        <div class="flex flex-col gap-1.5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="status-badge" :class="acc.type === 'doubao' ? 'bg-indigo-500/10 text-indigo-500' : 'bg-emerald-500/10 text-emerald-500'">
+                                                    {{ acc.type === 'doubao' ? '豆包' : '代理' }}
+                                                </span>
+                                                <span class="status-badge" :class="statusStyle(acc.status)">
+                                                    {{ getStatusCn(acc.status) }}
+                                                </span>
+                                            </div>
+                                            <div v-if="acc.healthStatus === 'unhealthy'" class="text-[10px] text-danger flex items-center gap-1">
+                                                <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                                                {{ acc.healthError || '异常' }}
+                                            </div>
+                                            <div v-else class="text-[10px] text-accent flex items-center gap-1">
+                                                <i data-lucide="check-circle" class="w-3 h-3"></i>
+                                                正常
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex flex-col gap-1 text-[10px]">
+                                            <div class="flex justify-between w-32 border-b border-dashed border-slate-200 dark:border-slate-800 pb-1">
+                                                <span class="text-slate-400">权重</span>
+                                                <span class="font-bold">{{ acc.weight || 1 }}</span>
+                                            </div>
+                                            <div class="flex justify-between w-32 mt-1">
+                                                <span class="text-slate-400">消耗 (图/视)</span>
+                                                <span class="font-bold text-primary">{{ acc.usageImage }}/{{ acc.limitImage }} , {{ acc.usageVideo }}/{{ acc.limitVideo }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button @click="editAccount(acc)" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-primary/10 text-slate-400 hover:text-primary transition-all">
+                                                <i data-lucide="edit-3" class="w-4 h-4"></i>
                                             </button>
-                                            <button @click="toggleAccount(acc)" class="btn btn-sm"
-                                                :class="acc.enabled ? 'btn-outline-warning' : 'btn-outline-success'"
-                                                :title="acc.enabled ? '点击禁用' : '点击启用'">
-                                                <i class="bi"
-                                                    :class="acc.enabled ? 'bi-pause-fill' : 'bi-play-fill'"></i>
+                                            <button @click="toggleAccount(acc)" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-amber-500/10 text-slate-400 hover:text-amber-500 transition-all">
+                                                <i :data-lucide="acc.enabled ? 'pause' : 'play'" class="w-4 h-4"></i>
                                             </button>
-                                            <button @click="resetAccount(acc.id)"
-                                                class="btn btn-outline-secondary btn-sm" title="重置今日计数">
-                                                <i class="bi bi-eraser"></i>
+                                            <button @click="resetAccount(acc.id)" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 transition-all">
+                                                <i data-lucide="eraser" class="w-4 h-4"></i>
                                             </button>
-                                            <button @click="deleteAccount(acc.id)" class="btn btn-outline-danger btn-sm"
-                                                title="删除账号">
-                                                <i class="bi bi-trash"></i>
+                                            <button @click="deleteAccount(acc.id)" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-danger/10 text-slate-400 hover:text-danger transition-all">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
-                                <tr v-if="accounts.length === 0">
-                                    <td colspan="4" class="text-center py-4 text-muted">暂无账号，请在右侧添加</td>
+                                <tr v-if="filteredAccounts.length === 0">
+                                    <td colspan="4" class="px-6 py-20 text-center">
+                                        <div class="flex flex-col items-center gap-3">
+                                             <div class="w-16 h-16 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center">
+                                                 <i data-lucide="inbox" class="w-8 h-8 text-slate-300"></i>
+                                             </div>
+                                             <p class="text-slate-500 font-medium">未找到任何账号。</p>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -206,164 +359,413 @@
                 </div>
             </div>
 
-            <!-- 添加账号 & 设置 -->
-            <div class="col-lg-4">
-                <div class="card p-3">
-                    <h5 class="mb-3">{{ editingId ? '编辑账号' : '添加新账号' }}</h5>
-                    <div class="mb-3">
-                        <label class="form-label small">SessionID (Refresh Token)</label>
-                        <textarea v-model="newAcc.token" class="form-control form-control-sm" rows="3"
-                            placeholder="粘贴 sessionid"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">备注名</label>
-                        <input v-model="newAcc.name" type="text" class="form-control form-control-sm"
-                            placeholder="如：账号1">
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small"><i class="bi bi-image text-primary"></i> 生图限额</label>
-                            <input v-model.number="newAcc.limitImage" type="number"
-                                class="form-control form-control-sm">
-                            <div class="form-text" style="font-size: 0.7em">默认60</div>
+            <!-- Settings Content -->
+            <div v-if="activePage === 'settings'" class="max-w-4xl flex flex-col gap-6">
+                <!-- System Config -->
+                <div class="glass-card p-6">
+                    <h3 class="font-display font-bold mb-6 flex items-center gap-2">
+                        <i data-lucide="settings-2" class="text-primary w-5 h-5"></i>
+                        系统全局配置
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">冷却时间 (ms)</label>
+                            <div class="relative">
+                                <input v-model.number="settings.cooldownTime" type="number" class="input-field">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase">ms</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500">单个账号请求之间的全局节流间隔。</p>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small"><i class="bi bi-camera-video text-danger"></i> 视频限额</label>
-                            <input v-model.number="newAcc.limitVideo" type="number"
-                                class="form-control form-control-sm">
-                            <div class="form-text" style="font-size: 0.7em">默认0</div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">默认模型</label>
+                            <input v-model="settings.defaultModel" type="text" placeholder="doubao" class="input-field">
                         </div>
-                        <div class="col-12">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="chatUnlimited" checked disabled>
-                                <label class="form-check-label small" for="chatUnlimited"><i
-                                        class="bi bi-chat-dots"></i> 对话不限次数</label>
+                        <div class="col-span-full pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl">
+                                <div>
+                                    <h4 class="font-bold text-sm">自动健康检查</h4>
+                                    <p class="text-[10px] text-slate-500">每 30 分钟自动验证背景连通性和 Session 有效性。</p>
+                                </div>
+                                <button @click="settings.enableHealthCheck = !settings.enableHealthCheck" 
+                                        :class="settings.enableHealthCheck !== false ? 'bg-primary shadow-primary/20' : 'bg-slate-300 dark:bg-slate-700'"
+                                        class="w-12 h-6 rounded-full relative transition-all duration-300 shadow-lg">
+                                    <div :class="settings.enableHealthCheck !== false ? 'translate-x-6' : 'translate-x-1'" 
+                                         class="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300"></div>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">管理员密码</label>
+                            <div class="relative">
+                                <input v-model="passChange" type="password" placeholder="留空则保持不变" class="input-field">
+                                <i data-lucide="lock" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                             </div>
                         </div>
                     </div>
-
-                    <div class="d-flex gap-2">
-                        <button @click="submitAccount" class="btn w-100 btn-sm"
-                            :class="editingId ? 'btn-primary' : 'btn-success'">
-                            <i class="bi" :class="editingId ? 'bi-save' : 'bi-plus-circle'"></i> {{ editingId ? '保存修改' :
-                            '立即添加' }}
-                        </button>
-                        <button v-if="editingId" @click="cancelEdit" class="btn btn-outline-secondary w-50 btn-sm">
-                            取消
-                        </button>
+                    <div class="mt-8 flex justify-end">
+                        <button @click="saveSettings" class="btn-indigo">更新全局配置</button>
                     </div>
                 </div>
 
-                <div class="card p-3">
-                    <h5 class="mb-3">全局设置</h5>
-                    <div class="mb-3">
-                        <label class="form-label small">冷却时间 (毫秒)</label>
-                        <div class="input-group input-group-sm">
-                            <input v-model.number="settings.cooldownTime" type="number" class="form-control">
-                            <span class="input-group-text">ms</span>
+                <!-- Danger Zone -->
+                <div class="glass-card p-6 border-danger/20">
+                     <h3 class="font-display font-bold text-danger mb-6 flex items-center gap-2">
+                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                        危险区域
+                    </h3>
+                    <div class="flex items-center justify-between p-4 bg-danger/5 rounded-2xl border border-danger/10">
+                        <div>
+                            <h4 class="font-bold text-sm">重置每日统计</h4>
+                            <p class="text-[10px] text-slate-500">立即清零所有账号的每日消耗和 Token 计数。</p>
                         </div>
-                        <div class="form-text small">单账号请求完成后，该账号强制休息的时长。</div>
+                        <button @click="resetAllUsage" class="px-4 py-2 bg-danger text-white text-xs font-bold rounded-xl hover:bg-danger-dark transition-colors shadow-lg shadow-danger/20">
+                            全部重置
+                        </button>
                     </div>
-                    <button @click="saveSettings" class="btn btn-primary w-100 btn-sm">保存设置</button>
                 </div>
+            </div>
+
+            <!-- Usage Content -->
+            <div v-if="activePage === 'usage'" class="flex flex-col gap-6">
+                 <div class="glass-card p-6 min-h-[500px] flex flex-col items-center justify-center gap-4">
+                     <div class="w-16 h-16 bg-primary/5 rounded-3xl flex items-center justify-center animate-pulse">
+                         <i data-lucide="bar-chart-3" class="w-8 h-8 text-primary/40"></i>
+                     </div>
+                     <p class="text-slate-400 font-medium">用量分析功能集成中。</p>
+                     <div class="text-[10px] font-mono text-slate-500 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                         V2_ANALYTICS_HOOK_CONNECTED
+                     </div>
+                 </div>
+            </div>
+
+        </main>
+
+    <!-- Account Modal -->
+    <div v-if="modal.show" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div @click="closeModal" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div class="glass-card w-full max-w-xl p-8 z-10 animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h2 class="text-xl font-display font-bold">{{ modal.titleCn }}</h2>
+                    <p class="text-xs text-slate-500">{{ modal.descCn }}</p>
+                </div>
+                <button @click="closeModal" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <!-- 健康检查排队 -->
+                <div class="col-span-2 space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" v-model="newAcc.skipHealthCheck" class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary accent-primary">
+                        <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors">对此账号跳过健康检查</span>
+                    </label>
+                </div>
+
+                <div class="col-span-2 space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">账号名称</label>
+                    <input v-model="newAcc.name" type="text" placeholder="例如：主账号" class="input-field">
+                </div>
+                
+                <div class="col-span-full space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">渠道类型</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button @click="newAcc.type = 'doubao'" :class="newAcc.type === 'doubao' ? 'ring-2 ring-primary bg-primary/10' : 'bg-slate-100 dark:bg-slate-800 opacity-60'" class="p-3 rounded-xl flex items-center gap-3 transition-all">
+                             <div class="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                                 <i data-lucide="user-plus" class="text-white w-4 h-4"></i>
+                             </div>
+                             <div class="text-left">
+                                 <div class="text-[10px] font-bold">豆包 (Doubao)</div>
+                                 <div class="text-[8px] uppercase tracking-wider">API 原生 Session</div>
+                             </div>
+                        </button>
+                        <button @click="newAcc.type = 'openai'" :class="newAcc.type === 'openai' ? 'ring-2 ring-primary bg-primary/10' : 'bg-slate-100 dark:bg-slate-800 opacity-60'" class="p-3 rounded-xl flex items-center gap-3 transition-all">
+                             <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                                 <i data-lucide="cloud" class="text-white w-4 h-4"></i>
+                             </div>
+                             <div class="text-left">
+                                 <div class="text-[10px] font-bold">OpenAI</div>
+                                 <div class="text-[8px] uppercase tracking-wider">三方兼容代理</div>
+                             </div>
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="newAcc.type === 'doubao'" class="col-span-full space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Session Token</label>
+                    <textarea v-model="newAcc.token" rows="3" placeholder="在此粘贴 sessionid..." class="input-field font-mono text-[10px]"></textarea>
+                </div>
+
+                <div v-if="newAcc.type === 'openai'" class="col-span-2 grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">API Key</label>
+                        <input v-model="newAcc.apiKey" type="password" placeholder="sk-..." class="input-field">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Base URL</label>
+                        <input v-model="newAcc.baseUrl" type="text" placeholder="https://api.openai.com" class="input-field">
+                    </div>
+                    <div class="space-y-1.5 col-span-full">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">支持能力</label>
+                        <div class="flex gap-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                             <label class="flex items-center gap-2 cursor-pointer text-[10px] font-bold uppercase">
+                                 <input type="checkbox" v-model="newAcc.isChat" class="w-4 h-4 accent-primary"> 对话
+                             </label>
+                             <label class="flex items-center gap-2 cursor-pointer text-[10px] font-bold uppercase">
+                                 <input type="checkbox" v-model="newAcc.isImage" class="w-4 h-4 accent-primary"> 绘画
+                             </label>
+                             <label class="flex items-center gap-2 cursor-pointer text-[10px] font-bold uppercase">
+                                 <input type="checkbox" v-model="newAcc.isVideo" class="w-4 h-4 accent-primary"> 视频
+                             </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Limits & Weights -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">负载权重</label>
+                    <input v-model.number="newAcc.weight" type="number" min="1" max="100" class="input-field">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">图片每日限制</label>
+                    <input v-model.number="newAcc.limitImage" type="number" class="input-field">
+                </div>
+            </div>
+
+            <div class="mt-10 flex gap-3">
+                <button @click="submitAccount" class="flex-1 btn-indigo">
+                    {{ editingId ? '更新账号' : '立即添加' }}
+                </button>
+                <button @click="closeModal" class="px-6 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium transition-colors">
+                    取消
+                </button>
             </div>
         </div>
     </div>
 
+    <!-- Login Overlay -->
+    <div v-if="!authorized" class="fixed inset-0 z-[200] flex items-center justify-center bg-[#0b0f1a]">
+         <div class="glass-card w-full max-w-sm p-8 flex flex-col items-center gap-6 shadow-indigo-500/20 shadow-2xl">
+             <div class="w-16 h-16 bg-primary rounded-3xl flex items-center justify-center shadow-xl shadow-primary/40 mb-2">
+                 <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
+             </div>
+             <div class="text-center">
+                 <h2 class="text-2xl font-display font-bold">权限验证</h2>
+                 <p class="text-xs text-slate-500 mt-1">请输入管理员密码以继续。</p>
+             </div>
+             <div class="w-full space-y-4">
+                 <div class="relative">
+                    <input v-model="loginPass" type="password" @keyup.enter="login" placeholder="管理员密码" class="input-field transition-all text-center">
+                    <p v-if="loginError" class="text-[10px] text-danger mt-2 text-center">{{ loginError }}</p>
+                 </div>
+                 <button @click="login" class="w-full btn-indigo py-4 shadow-xl">
+                    <span>进入管理后台</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                 </button>
+             </div>
+             <p class="text-[10px] text-slate-600 font-medium">由 Doubao Token Auth 安全加固</p>
+         </div>
+    </div>
+
+    <!-- Toast -->
+    <div v-for="toast in toasts" :key="toast.id" class="fixed bottom-8 right-8 z-[300] glass-card px-6 py-4 flex items-center gap-4 animate-in slide-in-from-right duration-300">
+         <div :class="toast.type === 'error' ? 'bg-danger/10 text-danger' : 'bg-accent/10 text-accent'" class="w-8 h-8 rounded-lg flex items-center justify-center">
+             <i :data-lucide="toast.type === 'error' ? 'alert-circle' : 'check-circle'" class="w-4 h-4"></i>
+         </div>
+         <div>
+             <div class="text-sm font-bold">{{ toast.title }}</div>
+             <div class="text-[10px] text-slate-500">{{ toast.msg }}</div>
+         </div>
+    </div>
+</div>
+
     <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script>
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
         createApp({
             setup() {
-                const accounts = ref([]);
+                const activePage = ref('dashboard');
+                const isDark = ref(document.documentElement.classList.contains('dark'));
+                const loading = ref(false);
+                const version = ref('V2.1.0-PREMIUM');
+                const authorized = ref(false);
+                const loginPass = ref('');
+                const loginError = ref(null);
+                const passChange = ref('');
+                
                 const stats = ref({
                     totalAccounts: 0, enabledAccounts: 0,
                     statusCounts: { idle: 0, busy: 0, cooldown: 0 },
-                    queue: 0,
-                    totalRemainingChat: 0,
-                    totalRemainingImage: 0,
-                    totalRemainingVideo: 0
+                    queue: 0, totalTokens: 0, storageUsed: 42
                 });
-                const settings = ref({ cooldownTime: 10000 });
-                const newAcc = ref({ token: '', name: '', limitChat: -1, limitImage: 60, limitVideo: 0 });
+                const accounts = ref([]);
+                const settings = ref({ cooldownTime: 10000, defaultModel: 'doubao' });
+                const storagePercent = ref(42);
+                const searchQuery = ref('');
+                const typeFilter = ref('all');
+                
+                const newAcc = ref({ 
+                    type: 'doubao', name: '', token: '', 
+                    apiKey: '', baseUrl: '', weight: 1, 
+                    limitImage: 60, limitVideo: 0,
+                    isChat: true, isImage: true, isVideo: false,
+                    skipHealthCheck: false
+                });
                 const editingId = ref(null);
-                const version = ref('加载中...');
+                const modal = ref({ show: false, title: 'Add Account', desc: 'Add a new native or proxy account to the pool.' });
+                const toasts = ref([]);
 
-                const fetchData = async () => {
+                const navItems = [
+                    { id: 'dashboard', name: '仪表盘', icon: 'layout-dashboard' },
+                    { id: 'accounts', name: '账号管理', icon: 'users' },
+                    { id: 'usage', name: '统计分析', icon: 'line-chart' },
+                    { id: 'settings', name: '系统设置', icon: 'settings' },
+                ];
+
+                const currentPageTitle = computed(() => navItems.find(i => i.id === activePage.value)?.name);
+                const currentPageDesc = computed(() => {
+                    const descs = {
+                        dashboard: '实时掌控 API 账号池性能指标。',
+                        accounts: '管理账号轮询、权重分配及健康检查状态。',
+                        usage: '深度分析消耗度量与成本估算。',
+                        settings: '控制全局系统行为、安全协议及鉴权设置。'
+                    };
+                    return descs[activePage.value];
+                });
+
+                const filteredAccounts = computed(() => {
+                    return accounts.value.filter(a => {
+                        const matchesSearch = (a.name || '').toLowerCase().includes(searchQuery.value.toLowerCase());
+                        const matchesType = typeFilter.value === 'all' || a.type === typeFilter.value;
+                        return matchesSearch && matchesType;
+                    });
+                });
+
+                const requestMix = [
+                    { name: '对话 (Chat)', value: 65, color: 'bg-indigo-500' },
+                    { name: '绘画 (Image)', value: 25, color: 'bg-emerald-500' },
+                    { name: '视频 (Video)', value: 10, color: 'bg-orange-500' },
+                ];
+                const tokenChartData = [45, 78, 56, 92, 64, 85, 72];
+
+                const toggleTheme = () => {
+                    isDark.value = !isDark.value;
+                    document.documentElement.classList.toggle('dark');
+                    localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
+                    nextTick(() => lucide.createIcons());
+                };
+
+                const login = async () => {
+                    const pass = loginPass.value;
+                    if(!pass) return;
                     try {
-                        const [accRes, statsRes, setRes, verRes] = await Promise.all([
-                            fetch('/admin/accounts').then(r => r.json()),
-                            fetch('/admin/stats').then(r => r.json()),
-                            fetch('/admin/settings').then(r => r.json()),
-                            fetch('/admin/version').then(r => r.json())
-                        ]);
-                        accounts.value = accRes.data;
-                        stats.value = statsRes.data;
-                        settings.value = setRes.data;
-                        version.value = verRes.data.version;
-                    } catch (e) {
-                        console.error("Failed to fetch data", e);
+                        const res = await fetch('/admin/login', {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ password: pass })
+                        });
+                        const data = await res.json();
+                        if(data.code === 0) {
+                            localStorage.setItem('admin_pass', pass);
+                            authorized.value = true;
+                            fetchData();
+                        } else {
+                            loginError.value = "密码错误，请重试。";
+                        }
+                    } catch(e) {
+                         loginError.value = "系统连接异常。";
                     }
                 };
 
-                const submitAccount = async () => {
-                    if (!newAcc.value.token) return alert("Token 不能为空");
+                const logout = () => {
+                    localStorage.removeItem('admin_pass');
+                    authorized.value = false;
+                    loginPass.value = '';
+                };
 
+                const getHeaders = () => {
+                   return {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('admin_pass') || ''}`
+                   }
+                };
+
+                const fetchData = async () => {
+                    if(!authorized.value) return;
+                    loading.value = true;
+                    try {
+                        const [accRes, statsRes, setRes, verRes] = await Promise.all([
+                            fetch('/admin/accounts', { headers: getHeaders() }).then(r => r.json()),
+                            fetch('/admin/stats', { headers: getHeaders() }).then(r => r.json()),
+                            fetch('/admin/settings', { headers: getHeaders() }).then(r => r.json()),
+                            fetch('/admin/version', { headers: getHeaders() }).then(r => r.json())
+                        ]);
+                        accounts.value = accRes.data || [];
+                        stats.value = statsRes.data || stats.value;
+                        settings.value = setRes.data || settings.value;
+                        version.value = (verRes.data && verRes.data.version) || version.value;
+                        storagePercent.value = Math.min(100, Math.floor((stats.value.totalAccounts / 20) * 100)); // Demo logic
+                    } catch (e) {
+                        showToast('同步失败', '鉴权失效或服务器离线。', 'error');
+                        if(e.message?.includes('401')) logout();
+                    } finally {
+                        loading.value = false;
+                        nextTick(() => lucide.createIcons());
+                    }
+                };
+
+                const openModal = (mode, acc = null) => {
+                    if(mode === 'add') {
+                        editingId.value = null;
+                        newAcc.value = { type: 'doubao', name: '', token: '', weight: 1, limitImage: 60, limitVideo: 0, isChat: true, isImage: true, isVideo: false, skipHealthCheck: false };
+                        modal.value = { 
+                            show: true, titleCn: '添加账号', 
+                            descCn: '安全地将新的原生或代理账号加入调度池。' 
+                        };
+                    } else {
+                        editingId.value = acc.id;
+                        newAcc.value = { ...acc };
+                        modal.value = { 
+                            show: true, titleCn: '编辑账号', 
+                            descCn: '调整账号权重分配、额度限制及运行参数。' 
+                        };
+                    }
+                    nextTick(() => lucide.createIcons());
+                };
+
+                const closeModal = () => { modal.value.show = false; };
+
+                const submitAccount = async () => {
+                    loading.value = true;
                     try {
                         let url = '/admin/accounts';
-                        if (editingId.value) {
-                            url = `/admin/accounts/${editingId.value}`;
-                        }
-
-                        // 确保数值正确
-                        const payload = {
-                            ...newAcc.value,
-                            limitChat: -1, // 强制为-1，或者允许用户修改，根据需求这里暂时强制-1
-                            limitImage: parseInt(newAcc.value.limitImage) || 60,
-                            limitVideo: parseInt(newAcc.value.limitVideo) || 0
-                        };
+                        if (editingId.value) url = `/admin/accounts/${editingId.value}`;
 
                         const res = await fetch(url, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
+                            headers: getHeaders(),
+                            body: JSON.stringify(newAcc.value)
                         });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.msg || "操作失败");
 
-                        if (!res.ok) {
-                            const err = await res.json();
-                            throw new Error(err.msg || "操作失败");
-                        }
-
-                        cancelEdit();
+                        closeModal();
                         fetchData();
-                        if (!editingId.value) alert("添加成功！");
+                        showToast('成功', editingId.value ? '已成功更新账号配置。' : '账号已加入调度池。', 'success');
                     } catch (e) {
-                        alert("操作失败: " + e.message);
+                        showToast('操作异常', e.message, 'error');
+                    } finally {
+                        loading.value = false;
                     }
-                };
-
-                const editAccount = (acc) => {
-                    editingId.value = acc.id;
-                    newAcc.value = {
-                        token: acc.token,
-                        name: acc.name,
-                        limitChat: acc.limitChat,
-                        limitImage: acc.limitImage,
-                        limitVideo: acc.limitVideo
-                    };
-                };
-
-                const cancelEdit = () => {
-                    editingId.value = null;
-                    newAcc.value = { token: '', name: '', limitChat: -1, limitImage: 60, limitVideo: 0 };
                 };
 
                 const toggleAccount = async (acc) => {
                     await fetch(`/admin/accounts/${acc.id}`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: getHeaders(),
                         body: JSON.stringify({ enabled: !acc.enabled })
                     });
                     fetchData();
@@ -372,40 +774,89 @@
                 const resetAccount = async (id) => {
                     await fetch(`/admin/accounts/${id}`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ usageChat: 0, usageImage: 0, usageVideo: 0 })
+                        headers: getHeaders(),
+                        body: JSON.stringify({ usageChat: 0, usageImage: 0, usageVideo: 0, totalTokens: 0 })
                     });
                     fetchData();
+                    showToast('计数重置', '该账号今日消耗数据已清空。', 'success');
                 };
 
                 const deleteAccount = async (id) => {
-                    if (!confirm("确定删除该账号吗？")) return;
-                    await fetch(`/admin/accounts/${id}`, { method: 'DELETE' });
+                    if (!confirm("确定要移除该账号吗？")) return;
+                    await fetch(`/admin/accounts/${id}`, { method: 'DELETE', headers: getHeaders() });
                     fetchData();
+                    showToast('移除成功', '账号已从系统中彻底删除。', 'success');
                 };
 
                 const saveSettings = async () => {
-                    await fetch('/admin/settings', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(settings.value)
-                    });
-                    alert("设置已保存");
-                    fetchData();
+                    const payload = { ...settings.value };
+                    if(passChange.value) payload.adminPassword = passChange.value;
+                    
+                    try {
+                        const res = await fetch('/admin/settings', {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            body: JSON.stringify(payload)
+                        });
+                        if(res.ok) {
+                           if(passChange.value) {
+                               localStorage.setItem('admin_pass', passChange.value);
+                               passChange.value = '';
+                           }
+                           showToast('配置成功', '全局系统行为已更新。', 'success');
+                           fetchData();
+                        }
+                    } catch (e) {
+                        showToast('更新失败', '网络错误或系统无权。', 'error');
+                    }
                 };
 
-                const resetAllUsage = async () => {
-                    if (!confirm("确定重置所有账号的今日使用统计吗？")) return;
-                    await fetch('/admin/reset-all', { method: 'POST' });
-                    fetchData();
+                const showToast = (title, msg, type = 'success') => {
+                    const id = Date.now();
+                    toasts.value.push({ id, title, msg, type });
+                    setTimeout(() => {
+                        toasts.value = toasts.value.filter(t => t.id !== id);
+                        nextTick(() => lucide.createIcons());
+                    }, 3000);
+                    nextTick(() => lucide.createIcons());
+                };
+
+                const formatNumber = (num) => {
+                    if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+                    return num;
+                };
+
+                const statusStyle = (status) => {
+                    switch(status) {
+                        case 'idle': return 'bg-accent/10 text-accent';
+                        case 'busy': return 'bg-primary/10 text-primary';
+                        case 'cooldown': return 'bg-warning/10 text-warning';
+                        default: return 'bg-slate-500/10 text-slate-500';
+                    }
+                };
+
+                const getStatusCn = (status) => {
+                    const dict = { idle: '空闲', busy: '繁忙', cooldown: '冷却中' };
+                    return dict[status] || '未知';
                 };
 
                 onMounted(() => {
-                    fetchData();
-                    setInterval(fetchData, 3000);
+                    const savedPass = localStorage.getItem('admin_pass');
+                    if (savedPass) {
+                        authorized.value = true;
+                        fetchData();
+                    }
+                    nextTick(() => lucide.createIcons());
                 });
 
-                return { accounts, stats, settings, newAcc, editingId, version, fetchData, submitAccount, editAccount, cancelEdit, toggleAccount, resetAccount, deleteAccount, saveSettings, resetAllUsage };
+                return {
+                    activePage, isDark, loading, version, authorized, loginPass, loginError, passChange,
+                    stats, accounts, settings, storagePercent, searchQuery, typeFilter,
+                    newAcc, editingId, modal, toasts, navItems, currentPageTitle, currentPageDesc,
+                    filteredAccounts, requestMix, tokenChartData,
+                    toggleTheme, login, logout, fetchData, openModal, closeModal, submitAccount, 
+                    toggleAccount, resetAccount, deleteAccount, saveSettings, formatNumber, statusStyle, getStatusCn
+                };
             }
         }).mount('#app');
     </script>
