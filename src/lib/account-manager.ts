@@ -338,6 +338,12 @@ class AccountManager extends EventEmitter {
   }
 
   public getStats() {
+      const usage = this.accounts.reduce((sums, a) => ({
+          chat: sums.chat + (a.usageChat || 0),
+          image: sums.image + (a.usageImage || 0),
+          video: sums.video + (a.usageVideo || 0)
+      }), { chat: 0, image: 0, video: 0 });
+
       return {
           totalAccounts: this.accounts.length,
           enabledAccounts: this.accounts.filter(a => a.enabled).length,
@@ -350,7 +356,8 @@ class AccountManager extends EventEmitter {
           totalRemainingChat: this.getTotalRemainingUsage('chat'),
           totalRemainingImage: this.getTotalRemainingUsage('image'),
           totalRemainingVideo: this.getTotalRemainingUsage('video'),
-          totalTokens: this.accounts.reduce((sum, a) => sum + (a.totalPromptTokens || 0) + (a.totalCompletionTokens || 0), 0)
+          totalTokens: this.accounts.reduce((sum, a) => sum + (a.totalPromptTokens || 0) + (a.totalCompletionTokens || 0), 0),
+          usage: usage
       };
   }
 

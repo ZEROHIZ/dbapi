@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import Response from "@/lib/response/Response.ts";
 import path from "path";
 import environment from "@/lib/environment.ts";
+import ResponsePolicyManager from "@/lib/response-policy.ts";
 
 // 读取版本号
 const getVersion = async () => {
@@ -70,7 +71,11 @@ export default {
         '/admin/version': async () => { // 版本号允许公开查看
             const version = await getVersion();
             return new SuccessfulBody({ version });
-        }
+        },
+        '/admin/policies': withAuth(async () => {
+            const policies = ResponsePolicyManager.getPolicies();
+            return new SuccessfulBody(policies);
+        })
     },
     post: {
         '/admin/login': async (req: any) => {
@@ -111,6 +116,14 @@ export default {
         '/admin/reset-all': withAuth(async () => {
             await AccountManager.resetDailyUsage();
             return new SuccessfulBody({ message: "All daily usage reset" });
+        }),
+        '/admin/policies': withAuth(async (req: any) => {
+            const policies = req.body;
+            if (!Array.isArray(policies)) {
+                return new Response({ code: 400, msg: "Body must be an array of policies" }, { statusCode: 400 });
+            }
+            await ResponsePolicyManager.savePolicies(policies);
+            return new SuccessfulBody({ message: "Policies saved" });
         })
     },
     delete: {
