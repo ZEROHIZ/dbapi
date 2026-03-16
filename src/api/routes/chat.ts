@@ -77,7 +77,9 @@ export default {
                     }
                     
                     if (isPooled && account.type === 'openai') {
-                        return await openaiProxy.proxyChat(request.body, account);
+                        const result = await openaiProxy.proxyChat(request.body, account); // Changed from proxyImage to proxyChat to match context
+                        if (isPooled) AccountManager.releaseToken(account.token);
+                        return result;
                     }
 
                     if (stream) {

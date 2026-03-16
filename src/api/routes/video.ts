@@ -83,7 +83,9 @@ export default {
                         account = await AccountManager.acquireToken('video', model);
                     }
                     if (isPooled && account.type === 'openai') {
-                        return await openaiProxy.proxyVideo(request.body, account);
+                        const result = await openaiProxy.proxyVideo(request.body, account);
+                        if (isPooled) AccountManager.releaseToken(account.token);
+                        return result;
                     }
 
                     if (stream) {

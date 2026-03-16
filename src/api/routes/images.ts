@@ -102,7 +102,9 @@ export default {
                         account = await AccountManager.acquireToken('image', model);
                     }
                     if (isPooled && account.type === 'openai') {
-                        return await openaiProxy.proxyImage(request.body, account);
+                        const result = await openaiProxy.proxyImage(request.body, account);
+                        if (isPooled) AccountManager.releaseToken(account.token);
+                        return result;
                     }
 
                     if (stream) {
