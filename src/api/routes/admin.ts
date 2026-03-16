@@ -6,6 +6,7 @@ import path from "path";
 import environment from "@/lib/environment.ts";
 import ResponsePolicyManager from "@/lib/response-policy.ts";
 import ModelManager from "@/lib/model-manager.ts";
+import TokenCounter from "@/lib/token-counter.ts";
 
 // 读取版本号
 const getVersion = async () => {
@@ -80,6 +81,13 @@ export default {
         '/admin/models': withAuth(async () => {
             const models = ModelManager.getAllModels();
             return new SuccessfulBody(models);
+        }),
+        '/admin/stats/history': withAuth(async () => {
+            const stats = TokenCounter.getStats();
+            return new SuccessfulBody({
+                hourly: stats.hourly,
+                daily: stats.daily
+            });
         })
     },
     post: {

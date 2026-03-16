@@ -224,19 +224,23 @@
                     <div class="flex items-center justify-between mb-6">
                         <h4 class="font-display font-bold">Token 消耗趋势</h4>
                         <div class="flex gap-2">
-                           <button class="text-xs px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 font-medium">按天</button>
-                           <button class="text-xs px-3 py-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium">按周</button>
+                           <button @click="toggleChartView('day')" :class="chartView === 'day' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'" class="text-xs px-3 py-1 rounded-lg font-medium transition-all">按天</button>
+                           <button @click="toggleChartView('week')" :class="chartView === 'week' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'" class="text-xs px-3 py-1 rounded-lg font-medium transition-all">按周</button>
                         </div>
                     </div>
-                    <div class="h-[250px] flex items-end gap-3 pb-8 px-2">
+                    <div class="h-[250px] flex items-end gap-1 pb-8 px-2 transition-all">
                         <div v-for="(h, i) in tokenChartData" :key="i" class="flex-1 h-full group relative">
-                             <div class="bg-primary/20 group-hover:bg-primary/40 transition-all rounded-t-lg w-full absolute bottom-0" :style="{height: h + '%'}"></div>
-                             <div class="bg-primary rounded-t-lg w-full absolute bottom-0" :style="{height: (h * 0.4) + '%'}"></div>
-                             <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{{h}}k tokens</div>
+                             <div class="bg-primary/20 group-hover:bg-primary/40 transition-all rounded-t-lg w-full absolute bottom-0" 
+                                  :style="{height: Math.max(2, (h / Math.max(10, ...tokenChartData, 100)) * 100) + '%'}"></div>
+                             <div class="bg-primary rounded-t-lg w-full absolute bottom-0" 
+                                  :style="{height: Math.max(1, (h / Math.max(10, ...tokenChartData, 100)) * 40) + '%'}"></div>
+                             <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">{{h}}k tokens</div>
                         </div>
                     </div>
                     <div class="flex justify-between mt-4 px-2">
-                         <span v-for="d in ['周一', '周二', '周三', '周四', '周五', '周六', '周日']" :key="d" class="text-[10px] font-bold text-slate-400 uppercase">{{d}}</span>
+                         <span v-for="(d, idx) in usageChartLabels" :key="idx" 
+                               v-if="chartView === 'week' || (idx % (chartView === 'day' ? 4 : 1) === 0)"
+                               class="text-[10px] font-bold text-slate-400 uppercase">{{d}}</span>
                     </div>
                 </div>
 
@@ -551,7 +555,7 @@
                                     <td class="px-6 py-4">
                                         <div class="font-display font-bold">{{ m.id }}</div>
                                         <div class="flex flex-wrap gap-1 mt-1">
-                                            <span v-for="p in (m.owned_by || '').split(/[,，/]/)" :key="p" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                            <span v-for="p in (m.owned_by || '').split(/[,，]/)" :key="p" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
                                                 {{ p.trim() }}
                                             </span>
                                         </div>
@@ -646,6 +650,15 @@
                     <input v-model="newAcc.remark" type="text" placeholder="批量添加时自动生成，单个添加可填写" class="input-field">
                 </div>
                 
+                <div class="col-span-1 space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">模型合并策略</label>
+                    <div class="flex gap-2">
+                        <select v-model="newAcc.mergePolicy" class="input-field py-2">
+                            <option value="merge">合并到相同映射 (推荐)</option>
+                            <option value="new">强制创建新别名</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="col-span-full space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">渠道类型</label>
                     <div class="grid grid-cols-2 gap-2">
@@ -705,7 +718,7 @@
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">支持模型 (留空则支持全部该类型模型)</label>
                     <div class="flex flex-wrap gap-2 mb-2 p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900/50 min-h-[48px]">
                         <template v-if="newAcc.models">
-                            <span v-for="mod in newAcc.models.split(/[,，/]/).map(m=>m.trim()).filter(Boolean)" :key="mod" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-medium">
+                            <span v-for="mod in newAcc.models.split(/[,，]/).map(m=>m.trim()).filter(Boolean)" :key="mod" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-medium">
                                 {{ mod }}
                                 <button @click="removeSupportedModel(mod)" class="hover:bg-indigo-500/20 rounded-full p-0.5" title="移出支持列表">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -717,16 +730,12 @@
                     <div class="relative">
                         <input type="text" @keydown.enter.prevent="addSupportedModel($event)" placeholder="+ 输入或选择支持的模型... (支持逗号分隔多个，按回车添加)" class="input-field" list="available-models">
                         <datalist id="available-models">
-                            <option v-for="m in models.filter(mod => !(newAcc.models || '').split(/[,，/]/).map(x=>x.trim()).includes(mod.id))" :key="m.id" :value="m.id">
-                                {{ m.id }}
+                            <option v-for="m in models.filter(mod => !(newAcc.models || '').split(/[,，]/).map(x=>x.trim()).includes(mod.backendModel || mod.id))" :key="m.id" :value="m.backendModel || m.id">
+                                {{ m.id }} {{ m.backendModel ? '-> ' + m.backendModel : '' }}
                             </option>
                         </datalist>
                         <i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
                     </div>
-                </div>
-                <div class="col-span-full space-y-1.5">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">模型映射 (JSON 格式，用于重定向模型 ID)</label>
-                    <textarea v-model="newAcc.modelMapping" rows="3" placeholder='例如：{"gpt-4": "doubao-pro"}' class="input-field font-mono text-[10px]"></textarea>
                 </div>
             </div>
 
@@ -788,7 +797,7 @@
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">提供者 (Owned By)</label>
                     <div class="flex flex-wrap gap-2 mb-2 p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900/50 min-h-[48px]">
                         <template v-if="currentModel.owned_by">
-                            <span v-for="provider in currentModel.owned_by.split(/[,，/]/).map(p=>p.trim()).filter(Boolean)" :key="provider" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-primary/10 text-primary text-xs font-medium">
+                            <span v-for="provider in currentModel.owned_by.split(/[,，]/).map(p=>p.trim()).filter(Boolean)" :key="provider" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-primary/10 text-primary text-xs font-medium">
                                 {{ provider }}
                                 <button @click="removeProvider(provider)" class="hover:bg-primary/20 rounded-full p-0.5" title="移除提供者">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -801,7 +810,7 @@
                     <div class="relative">
                         <select @change="addProvider($event)" class="input-field appearance-none cursor-pointer" :value="''">
                             <option value="" disabled selected>-- 点击选择并添加渠道作为提供者 --</option>
-                            <option v-for="name in channelNames.filter(n => !(currentModel.owned_by || '').split(/[,，/]/).map(p=>p.trim()).includes(n))" :key="name" :value="name">添加: {{ name }}</option>
+                            <option v-for="name in channelNames.filter(n => !(currentModel.owned_by || '').split(/[,，]/).map(p=>p.trim()).includes(n))" :key="name" :value="name">添加: {{ name }}</option>
                         </select>
                         <i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
                     </div>
@@ -909,7 +918,7 @@
                     limitImage: 60, limitVideo: 0,
                     isChat: true, isImage: true, isVideo: false,
                     skipHealthCheck: false,
-                    models: '', modelMapping: ''
+                    models: '', mergePolicy: 'merge'
                 });
                 const editingId = ref(null);
                 const modal = ref({ show: false, title: 'Add Channel', desc: 'Add a new channel with one or more keys.' });
@@ -975,8 +984,57 @@
                     ];
                 });
 
+                const chartView = ref('day'); // 'day' or 'week'
                 const tokenChartData = ref([]);
                 const usageChartData = ref([]);
+
+                const generateTrendData = async () => {
+                    try {
+                        const res = await fetch('/admin/stats/history', { headers: getHeaders() }).then(r => r.json());
+                        const history = res.data || { hourly: {}, daily: {} };
+                        
+                        if (chartView.value === 'day') {
+                            // Get last 24 hours
+                            const labels = [];
+                            const data = [];
+                            const now = new Date();
+                            for (let i = 23; i >= 0; i--) {
+                                const d = new Date(now.getTime() - i * 3600 * 1000);
+                                const hStr = `${d.toISOString().split('T')[0]} ${d.getHours().toString().padStart(2, '0')}:00`;
+                                labels.push(`${d.getHours()}:00`);
+                                data.push(Math.round((history.hourly[hStr] || 0) / 1000)); // Convert to k tokens
+                            }
+                            usageChartLabels.value = labels;
+                            tokenChartData.value = data;
+                        } else {
+                            // Get last 7 days
+                            const labels = [];
+                            const data = [];
+                            const now = new Date();
+                            const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+                            for (let i = 6; i >= 0; i--) {
+                                const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+                                const dStr = d.toISOString().split('T')[0];
+                                labels.push(weekDays[d.getDay()]);
+                                data.push(Math.round((history.daily[dStr] || 0) / 1000)); // Convert to k tokens
+                            }
+                            usageChartLabels.value = labels;
+                            tokenChartData.value = data;
+                        }
+                        usageChartData.value = tokenChartData.value.map(v => Math.floor(v * 0.8));
+                    } catch (e) {
+                        console.error("加载趋势数据失败:", e);
+                    }
+                };
+
+                const usageChartLabels = ref(['周一', '周二', '周三', '周四', '周五', '周六', '周日']);
+
+                const toggleChartView = (view) => {
+                    chartView.value = view;
+                    generateTrendData();
+                    refreshIcons();
+                };
+
                 const resourceEfficiency = computed(() => {
                     const total = stats.value.totalAccounts || 0;
                     const enabled = stats.value.enabledAccounts || 0;
@@ -987,7 +1045,7 @@
                         { label: '服务可用性', value: stats.value.enabledAccounts > 0 ? 100 : 0 }
                     ];
                 });
-                
+
                 const toggleTheme = () => {
                     isDark.value = !isDark.value;
                     document.documentElement.classList.toggle('dark');
@@ -1047,6 +1105,7 @@
                         version.value = (verRes.data && verRes.data.version) || version.value;
                         models.value = modRes.data || [];
                         storagePercent.value = Math.min(100, Math.floor((stats.value.totalAccounts / 20) * 100));
+                        generateTrendData();
                         // Load policies
                         try {
                             const polRes = await fetch('/admin/policies', { headers: getHeaders() }).then(r => r.json());
@@ -1064,7 +1123,7 @@
                 const openModal = (mode, acc = null) => {
                     if(mode === 'add') {
                         editingId.value = null;
-                        newAcc.value = { type: 'doubao', name: '', token: '', remark: '', weight: 1, limitImage: 60, limitVideo: 0, isChat: true, isImage: true, isVideo: false, skipHealthCheck: false, models: '', modelMapping: '' };
+                        newAcc.value = { type: 'doubao', name: '', token: '', remark: '', weight: 1, limitImage: 60, limitVideo: 0, isChat: true, isImage: true, isVideo: false, skipHealthCheck: false, models: '', mergePolicy: 'merge' };
                         modal.value = { 
                             show: true, titleCn: '添加渠道', 
                             descCn: '安全地将新的原生或代理渠道加入调度池。' 
@@ -1072,6 +1131,7 @@
                     } else {
                         editingId.value = acc.id;
                         newAcc.value = { ...acc };
+                        newAcc.value.mergePolicy = acc.mergePolicy || 'merge';
                         modal.value = { 
                             show: true, titleCn: '编辑渠道', 
                             descCn: '调整渠道权重分配、额度限制及运行参数。' 
@@ -1279,13 +1339,13 @@
                     stats, accounts, settings, policies, storagePercent, searchQuery, channelFilter, channelNames,
                     newAcc, editingId, modal, toasts, navItems, currentPageTitle, currentPageDesc,
                     filteredAccounts, requestMix, tokenChartData,
-                    usageChartData, resourceEfficiency,
+                    usageChartData, resourceEfficiency, chartView, usageChartLabels, toggleChartView,
                     toggleTheme, login, logout, fetchData, openModal, closeModal, submitAccount, 
                     toggleAccount, resetAccount, deleteAccount, toggleChannelGroup, deleteChannelGroup, saveSettings, savePolicies,
                     addProvider: (e) => {
                         const val = e.target.value;
                         if (!val) return;
-                        let existing = currentModel.value.owned_by ? currentModel.value.owned_by.split(/[,，/]/).map(p=>p.trim()).filter(Boolean) : [];
+                        let existing = currentModel.value.owned_by ? currentModel.value.owned_by.split(/[,，]/).map(p=>p.trim()).filter(Boolean) : [];
                         if (!existing.includes(val)) {
                             existing.push(val);
                             currentModel.value.owned_by = existing.join(', ');
@@ -1293,15 +1353,16 @@
                         e.target.value = '';
                     },
                     removeProvider: (name) => {
-                        let existing = currentModel.value.owned_by ? currentModel.value.owned_by.split(/[,，/]/).map(p=>p.trim()).filter(Boolean) : [];
+                        let existing = currentModel.value.owned_by ? currentModel.value.owned_by.split(/[,，]/).map(p=>p.trim()).filter(Boolean) : [];
                         existing = existing.filter(p => p !== name);
                         currentModel.value.owned_by = existing.join(', ');
                     },
                     addSupportedModel: (e) => {
                         const val = e.target.value;
                         if (!val) return;
-                        const newModels = val.split(/[,，\s]/).map(m => m.trim()).filter(Boolean);
-                        const current = (newAcc.value.models || '').split(/[,，/]/).map(m => m.trim()).filter(Boolean);
+                        // 移除空格拆分，仅保留逗号拆分，以支持带空格的模型名
+                        const newModels = val.split(/[,，]/).map(m => m.trim()).filter(Boolean);
+                        const current = (newAcc.value.models || '').split(/[,，]/).map(m => m.trim()).filter(Boolean);
                         
                         let updated = false;
                         for (const newMod of newModels) {
@@ -1317,7 +1378,7 @@
                         e.target.value = '';
                     },
                     removeSupportedModel: (mod) => {
-                        const current = (newAcc.value.models || '').split(/[,，/]/).map(m => m.trim()).filter(Boolean);
+                        const current = (newAcc.value.models || '').split(/[,，]/).map(m => m.trim()).filter(Boolean);
                         newAcc.value.models = current.filter(m => m !== mod).join(', ');
                     },
                     addPolicy, removePolicy,

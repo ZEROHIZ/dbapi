@@ -50,6 +50,8 @@ export interface Account {
   modelMapping?: string; 
   // New: 备注，用于区分同一渠道下的不同 Key
   remark?: string;
+  // New: 模型合并策略
+  mergePolicy?: "new" | "merge";
 
   // 统计与限制
   limitChat: number;  // -1 表示不限
@@ -109,6 +111,32 @@ class AccountManager extends EventEmitter {
       reject: (err: any) => void 
   }> = [];
 
+  /**
+   * 将账号支持的模型列表与模型管理器中的提供者设置同步 (双向同步)
+   * @param specificChannel 可选，只同步特定渠道
+   */
+  public async syncAccountModelsWithModelProviders(specificChannel?: string) {
+      const targetChannels = specificChannel ? [specificChannel] : [...new Set(this.accounts.map(a => a.name))];
+      let modified = false;
+
+      for (const channelName of targetChannels) {
+          const supportedModels = ModelManager.getModelsByProvider(channelName);
+          const modelsString = supportedModels.join(', ');
+
+          this.accounts.forEach(acc => {
+              if (acc.name === channelName && acc.models !== modelsString) {
+                  acc.models = modelsString;
+                  modified = true;
+              }
+          });
+      }
+
+      if (modified) {
+          await this.saveAccounts();
+          logger.info(`[AccountManager] 已自动同步 [${targetChannels.join(', ')}] 渠道的支持模型列表`);
+      }
+  }
+
   constructor() {
     super();
     this.init();
@@ -160,6 +188,7 @@ class AccountManager extends EventEmitter {
             userId: s.userId || "",
             models: s.models || "",
             modelMapping: s.modelMapping || "",
+            mergePolicy: s.mergePolicy || "merge",
             // 兼容逻辑：如果没有新字段，使用默认值
             limitChat: s.limitChat !== undefined ? s.limitChat : -1,
             limitImage: s.limitImage !== undefined ? s.limitImage : 60,
@@ -182,7 +211,7 @@ class AccountManager extends EventEmitter {
         id: a.id, token: a.token, name: a.name, enabled: a.enabled,
         type: a.type, weight: a.weight,
         baseUrl: a.baseUrl, apiKey: a.apiKey, capability: a.capability, modelName: a.modelName,
-        models: a.models, modelMapping: a.modelMapping,
+        models: a.models, modelMapping: a.modelMapping, mergePolicy: a.mergePolicy || "merge",
         deviceId: a.deviceId, webId: a.webId, userId: a.userId,
         limitChat: a.limitChat, limitImage: a.limitImage, limitVideo: a.limitVideo,
         usageChat: a.usageChat, usageImage: a.usageImage, usageVideo: a.usageVideo,
@@ -393,14 +422,27 @@ class AccountManager extends EventEmitter {
 
   /**
    * 将账号支持的模型同步到 ModelManager
+   * @param modelsStr 支持模型字符串
+   * @param provider 提供者名称
+   * @param mergePolicy 合并策略: 'new' | 'merge'
    */
-  private async syncModels(modelsStr: string, provider: string) {
+  private async syncModels(modelsStr: string, provider: string, mergePolicy: 'new' | 'merge' = 'merge') {
     if (!modelsStr || modelsStr.trim().length === 0) return;
-    const modelIds = modelsStr.split(",").map((m) => m.trim()).filter(m => m.length > 0);
+    const modelIds = modelsStr.split(/[,，]/).map((m) => m.trim()).filter(m => m.length > 0);
+    
     for (const id of modelIds) {
+      // 检查是否已经存在具有相同 backendModel 的模型（如果是 merge 模式）
+      let targetModelId = id;
+      if (mergePolicy === 'merge') {
+          const existing = ModelManager.getAllModels().find(m => m.backendModel === id || m.id === id);
+          if (existing) {
+              targetModelId = existing.id;
+          }
+      }
+
       await ModelManager.addOrUpdateModel({
-        id,
-        backendModel: id,
+        id: targetModelId,
+        backendModel: targetModelId === id ? id : undefined, // 如果是新创建，设置 backendModel
         object: "model",
         owned_by: provider || "doubao-free-api",
         type: "chat", // 默认为 chat，用户可以在模型管理手动修改
@@ -437,6 +479,7 @@ class AccountManager extends EventEmitter {
           modelName: extra.modelName || "",
           models: extra.models || "",
           modelMapping: extra.modelMapping || "",
+          mergePolicy: extra.mergePolicy || "merge",
           deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
           webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
           userId: util.uuid(false),
@@ -461,7 +504,7 @@ class AccountManager extends EventEmitter {
         
         // 同步模型
         if (extra.models) {
-            await this.syncModels(extra.models, newAccount.name);
+            await this.syncModels(extra.models, newAccount.name, extra.mergePolicy);
         }
     }
 
@@ -470,7 +513,7 @@ class AccountManager extends EventEmitter {
     return createdAccounts.length === 1 ? createdAccounts[0] : createdAccounts;
   }
 
-  public async updateAccount(id: string, updates: Partial<Account>) {
+  public async updateAccount(id: string, updates: Partial<Account> & { mergePolicy?: 'new' | 'merge' }) {
     const index = this.accounts.findIndex((a) => a.id === id);
     if (index !== -1) {
       const wasEnabled = this.accounts[index].enabled;
@@ -480,9 +523,10 @@ class AccountManager extends EventEmitter {
       if (updates.limitImage !== undefined) updates.limitImage = Number(updates.limitImage);
       if (updates.limitVideo !== undefined) updates.limitVideo = Number(updates.limitVideo);
       
-      this.accounts[index] = { ...this.accounts[index], ...updates };
+      const { mergePolicy, ...rest } = updates;
+      this.accounts[index] = { ...this.accounts[index], ...rest, mergePolicy: mergePolicy || this.accounts[index].mergePolicy || "merge" };
       if (!wasEnabled && updates.enabled) this.processQueue();
-      if (updates.models) await this.syncModels(updates.models, this.accounts[index].name);
+      if (updates.models) await this.syncModels(updates.models, this.accounts[index].name, mergePolicy);
       await this.saveAccounts();
       return this.accounts[index];
     }
@@ -524,6 +568,8 @@ class AccountManager extends EventEmitter {
       
       if (deletedCount > 0) {
           await this.saveAccounts();
+          // 同时从模型管理中移除该提供者
+          await ModelManager.removeProviderFromAllModels(name);
       }
       return deletedCount;
   }
@@ -681,9 +727,18 @@ class AccountManager extends EventEmitter {
   }
 
   public async deleteAccount(id: string) {
+    const account = this.accounts.find(a => a.id === id);
+    if (!account) return;
 
+    const channelName = account.name;
     this.accounts = this.accounts.filter((a) => a.id !== id);
     await this.saveAccounts();
+
+    // 如果该渠道下没有其他账号了，则从模型管理中移除该提供者
+    const hasRemaining = this.accounts.some(a => a.name === channelName);
+    if (!hasRemaining) {
+        await ModelManager.removeProviderFromAllModels(channelName);
+    }
   }
 
   public async resetDailyUsage() {

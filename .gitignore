@@ -4,6 +4,7 @@ logs/
 .vercel
 11/
 
+bug.md
 /data
 *.log
 .request_debug.jsonl

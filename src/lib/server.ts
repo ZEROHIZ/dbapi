@@ -131,15 +131,27 @@ class Server {
         return new Promise(resolve => {
             const request = new Request(ctx);
             try {
-                if(config.system.requestLog)
+                if(config.system.requestLog) {
                     logger.info(`-> ${request.method} ${request.url}`);
-                    routeFn(request)
+                    if (!_.isEmpty(request.body)) {
+                        logger.info(`DATA: ${JSON.stringify(request.body)}`);
+                    }
+                }
+                routeFn(request)
                 .then(response => {
                     try {
                         if(!Response.isInstance(response)) {
                             const _response = new Response(response);
+                            if (config.system.requestLog && _response.body) {
+                                const logBody = typeof _response.body === 'object' ? JSON.stringify(_response.body) : _response.body;
+                                logger.info(`REPLY: ${logBody}`);
+                            }
                             _response.injectTo(ctx);
                             return resolve({ request, response: _response });
+                        }
+                        if (config.system.requestLog && response.body) {
+                            const logBody = typeof response.body === 'object' ? JSON.stringify(response.body) : response.body;
+                            logger.info(`REPLY: ${logBody}`);
                         }
                         response.injectTo(ctx);
                         resolve({ request, response });
