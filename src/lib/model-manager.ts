@@ -81,7 +81,25 @@ class ModelManager {
     public async addOrUpdateModel(config: ModelConfig) {
         const index = this.models.findIndex(m => m.id === config.id);
         if (index !== -1) {
-            this.models[index] = { ...this.models[index], ...config };
+            // 合并策略：如果新配置有 owned_by，则将其添加到现有别名列表中（去重）
+            const existing = this.models[index];
+            let newOwnedBy = existing.owned_by;
+            
+            if (config.owned_by) {
+                // 拆分、合并、去重
+                const providers = [
+                    ...newOwnedBy.split(/[,，/]/).map(p => p.trim()),
+                    ...config.owned_by.split(/[,，/]/).map(p => p.trim())
+                ].filter(p => p.length > 0);
+                newOwnedBy = [...new Set(providers)].join(', ');
+            }
+
+            // 更新除 id 之外的字段，owned_by 采用合并后的值
+            this.models[index] = { 
+                ...existing, 
+                ...config, 
+                owned_by: newOwnedBy 
+            };
         } else {
             this.models.push(config);
         }

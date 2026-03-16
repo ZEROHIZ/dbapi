@@ -173,7 +173,7 @@
                     </div>
                     <div>
                         <div class="text-3xl font-display font-bold">{{ stats.enabledAccounts }} / {{ stats.totalAccounts }}</div>
-                        <p class="text-xs text-slate-500">账号池总量</p>
+                        <p class="text-xs text-slate-500">渠道池总量</p>
                     </div>
                 </div>
 
@@ -189,7 +189,7 @@
                     </div>
                     <div>
                         <div class="text-3xl font-display font-bold">{{ stats.statusCounts.idle }}</div>
-                        <p class="text-xs text-slate-500">空闲可用账号</p>
+                        <p class="text-xs text-slate-500">空闲可用渠道</p>
                     </div>
                 </div>
 
@@ -264,17 +264,33 @@
                     <div class="flex gap-4 flex-1">
                         <div class="relative max-w-sm flex-1">
                              <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                             <input v-model="searchQuery" type="search" placeholder="搜索账号..." class="input-field pl-11">
+                             <input v-model="searchQuery" type="search" placeholder="搜索渠道..." class="input-field pl-11">
                         </div>
-                        <select v-model="typeFilter" class="glass-card px-4 py-2 text-sm border-none outline-none cursor-pointer">
-                            <option value="all">所有类型</option>
-                            <option value="doubao">豆包 (原生)</option>
-                            <option value="openai">OpenAI (代理)</option>
-                        </select>
+                        <div class="flex items-center gap-2">
+                            <select v-model="channelFilter" class="glass-card px-4 py-2 text-sm border-none outline-none cursor-pointer">
+                                <option value="all">所有渠道</option>
+                                <option v-for="name in channelNames" :key="name" :value="name">{{ name }}</option>
+                            </select>
+                            
+                            <!-- Channel Group Controls (Visible only when a specific channel is selected) -->
+                            <div v-if="channelFilter !== 'all'" class="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-sm">
+                                <button @click="toggleChannelGroup(channelFilter, true)" class="px-3 py-1.5 text-xs font-medium rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors" title="启用该渠道下所有账号">
+                                    启动全部
+                                </button>
+                                <div class="w-px h-4 bg-slate-200 dark:bg-slate-800"></div>
+                                <button @click="toggleChannelGroup(channelFilter, false)" class="px-3 py-1.5 text-xs font-medium rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title="暂停该渠道下所有账号">
+                                    暂停全部
+                                </button>
+                                <div class="w-px h-4 bg-slate-200 dark:bg-slate-800"></div>
+                                <button @click="deleteChannelGroup(channelFilter)" class="px-3 py-1.5 text-xs font-medium rounded-lg text-danger hover:bg-danger/10 transition-colors" title="删除该渠道下所有账号">
+                                    删除该渠道
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <button @click="openModal('add')" class="btn-indigo">
+                    <button @click="openModal('add')" class="btn-indigo whitespace-nowrap">
                         <i data-lucide="plus"></i>
-                        <span>添加账号</span>
+                        <span>添加渠道 API</span>
                     </button>
                 </div>
 
@@ -284,7 +300,7 @@
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="border-b border-slate-200/50 dark:border-slate-800/50">
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">账号</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">渠道</th>
                                     <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">类型 / 状态</th>
                                     <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">权重 / 限制</th>
                                     <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">操作</th>
@@ -298,7 +314,8 @@
                                                 {{ (acc.name || 'A').charAt(0).toUpperCase() }}
                                             </div>
                                             <div>
-                                                <div class="font-display font-bold">{{ acc.name || '未命名账号' }}</div>
+                                                <div class="font-display font-bold">{{ acc.name || '未命名渠道' }}</div>
+                                                <div v-if="acc.remark" class="text-[10px] text-primary font-medium">{{ acc.remark }}</div>
                                                 <div class="text-[10px] text-slate-500 font-mono tracking-tighter">{{ acc.id }}</div>
                                             </div>
                                         </div>
@@ -359,7 +376,7 @@
                                              <div class="w-16 h-16 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center">
                                                  <i data-lucide="inbox" class="w-8 h-8 text-slate-300"></i>
                                              </div>
-                                             <p class="text-slate-500 font-medium">未找到任何账号。</p>
+                                             <p class="text-slate-500 font-medium">未找到任何渠道。</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -490,7 +507,7 @@
                     <div class="flex items-center justify-between p-4 bg-danger/5 rounded-2xl border border-danger/10">
                         <div>
                             <h4 class="font-bold text-sm">重置每日统计</h4>
-                            <p class="text-[10px] text-slate-500">立即清零所有账号的每日消耗和 Token 计数。</p>
+                            <p class="text-[10px] text-slate-500">立即清零所有渠道的每日消耗和 Token 计数。</p>
                         </div>
                         <button @click="resetAllUsage" class="px-4 py-2 bg-danger text-white text-xs font-bold rounded-xl hover:bg-danger-dark transition-colors shadow-lg shadow-danger/20">
                             全部重置
@@ -508,19 +525,15 @@
                              <input v-model="modelSearchQuery" type="search" placeholder="搜索模型..." class="input-field pl-11">
                         </div>
                         <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                            <button v-for="tab in [{id:'all', name:'全部'}, {id:'enabled', name:'已启用'}, {id:'disabled', name:'已禁用'}]" 
-                                    :key="tab.id"
-                                    @click="modelEnabledFilter = tab.id"
-                                    :class="modelEnabledFilter === tab.id ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
-                                    class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 uppercase tracking-wider">
-                                {{ tab.name }}
-                            </button>
+                             <button v-for="tab in [{id:'all', name:'全部'}, {id:'enabled', name:'已启用'}, {id:'disabled', name:'已禁用'}]" 
+                                     :key="tab.id"
+                                     @click="modelEnabledFilter = tab.id"
+                                     :class="modelEnabledFilter === tab.id ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                     class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 uppercase tracking-wider">
+                                 {{ tab.name }}
+                             </button>
                         </div>
                     </div>
-                    <button @click="openModelModal('add')" class="btn-indigo">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></svg>
-                        <span>添加模型</span>
-                    </button>
                 </div>
 
                 <div class="glass-card overflow-hidden">
@@ -528,16 +541,20 @@
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="border-b border-slate-200/50 dark:border-slate-800/50">
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">模型 ID</th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">类型 / 上游模型</th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">操作</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">模型 ID / 提供者</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">类型 / 映射名</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">管理</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200/50 dark:divide-slate-800/50">
                                 <tr v-for="m in filteredModels" :key="m.id" class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
                                     <td class="px-6 py-4">
                                         <div class="font-display font-bold">{{ m.id }}</div>
-                                        <div class="text-[10px] text-slate-500">{{ m.owned_by }}</div>
+                                        <div class="flex flex-wrap gap-1 mt-1">
+                                            <span v-for="p in (m.owned_by || '').split(/[,，/]/)" :key="p" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                                {{ p.trim() }}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center gap-2">
@@ -616,13 +633,17 @@
                 <div class="col-span-2 space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/50">
                     <label class="flex items-center gap-2 cursor-pointer group">
                         <input type="checkbox" v-model="newAcc.skipHealthCheck" class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary accent-primary">
-                        <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors">对此账号跳过健康检查</span>
+                        <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors">对此渠道跳过健康检查</span>
                     </label>
                 </div>
 
                 <div class="col-span-2 space-y-1.5">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">账号名称</label>
-                    <input v-model="newAcc.name" type="text" placeholder="例如：主账号" class="input-field">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">渠道名称</label>
+                    <input v-model="newAcc.name" type="text" placeholder="例如：主渠道" class="input-field">
+                </div>
+                <div class="col-span-2 space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">备注 (区分同渠道下的不同 Key)</label>
+                    <input v-model="newAcc.remark" type="text" placeholder="批量添加时自动生成，单个添加可填写" class="input-field">
                 </div>
                 
                 <div class="col-span-full space-y-1.5">
@@ -650,14 +671,14 @@
                 </div>
 
                 <div v-if="newAcc.type === 'doubao'" class="col-span-full space-y-1.5">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Session Token</label>
-                    <textarea v-model="newAcc.token" rows="3" placeholder="在此粘贴 sessionid..." class="input-field font-mono text-[10px]"></textarea>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Session Token (批量添加请一行一个)</label>
+                    <textarea v-model="newAcc.token" rows="3" placeholder="在此粘贴 sessionid...&#10;批量导入方案：&#10;token1&#10;token2" class="input-field font-mono text-[10px]"></textarea>
                 </div>
 
                 <div v-if="newAcc.type === 'openai'" class="col-span-2 grid grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">API Key</label>
-                        <input v-model="newAcc.apiKey" type="password" placeholder="sk-..." class="input-field">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">API Key (支持批量，一行一个)</label>
+                        <textarea v-model="newAcc.apiKey" rows="2" placeholder="sk-..." class="input-field font-mono text-[10px]"></textarea>
                     </div>
                     <div class="space-y-1.5">
                         <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Base URL</label>
@@ -681,8 +702,11 @@
 
                 <!-- Models & Mapping -->
                 <div class="col-span-full space-y-1.5 border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">支持模型 (逗号分隔，留空表示支持全部)</label>
-                    <input v-model="newAcc.models" type="text" placeholder="例如：doubao-pro,doubao-lite" class="input-field">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">支持模型 (逗号分隔，留空则支持全部，会自动同步到模型列表)</label>
+                    <input v-model="newAcc.models" type="text" placeholder="例如：doubao-pro,doubao-lite" class="input-field" list="model-suggestions">
+                    <datalist id="model-suggestions">
+                        <option v-for="m in models" :key="m.id" :value="m.id"></option>
+                    </datalist>
                 </div>
                 <div class="col-span-full space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">模型映射 (JSON 格式，用于重定向模型 ID)</label>
@@ -692,7 +716,7 @@
 
             <div class="mt-10 flex gap-3">
                 <button @click="submitAccount" class="flex-1 btn-indigo">
-                    {{ editingId ? '更新账号' : '立即添加' }}
+                    {{ editingId ? '更新渠道' : '立即添加' }}
                 </button>
                 <button @click="closeModal" class="px-6 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium transition-colors">
                     取消
@@ -716,14 +740,23 @@
 
             <div class="space-y-6">
                 <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">模型 ID (OpenAI 调用名)</label>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">公开调用名 (OpenAI Model ID)</label>
                     <input v-model="currentModel.id" type="text" placeholder="例如：doubao-pro" :disabled="modelModal.isEdit" class="input-field disabled:opacity-50">
+                    <div class="text-[9px] text-slate-400">调用 API 时使用的名字。系统会自动将其映射到后端 ID。</div>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">上游模型名称 (后端真实 ID)</label>
-                        <input v-model="currentModel.backendModel" type="text" placeholder="留空则与 ID 相同" class="input-field">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">后端映射名 (建议留空)</label>
+                        <input v-model="currentModel.backendModel" type="text" placeholder="留空则与调用名相同" class="input-field" list="backend-suggestions">
+                        <datalist id="backend-suggestions">
+                            <option value="Seedream 4.0">
+                            <option value="Seedream 4.2">
+                            <option value="Seedream 4.5">
+                            <option value="doubao-pro-4k">
+                            <option value="doubao-pro-32k">
+                            <option value="doubao-pro-128k">
+                        </datalist>
                     </div>
                     <div class="space-y-1.5">
                         <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">模型类型</label>
@@ -737,7 +770,25 @@
 
                 <div class="space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">提供者 (Owned By)</label>
-                    <input v-model="currentModel.owned_by" type="text" placeholder="doubao-free-api" class="input-field">
+                    <div class="flex flex-wrap gap-2 mb-2 p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900/50 min-h-[48px]">
+                        <template v-if="currentModel.owned_by">
+                            <span v-for="provider in currentModel.owned_by.split(/[,，/]/).map(p=>p.trim()).filter(Boolean)" :key="provider" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-primary/10 text-primary text-xs font-medium">
+                                {{ provider }}
+                                <button @click="removeProvider(provider)" class="hover:bg-primary/20 rounded-full p-0.5" title="移除提供者">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </span>
+                        </template>
+                        <span v-if="!currentModel.owned_by || currentModel.owned_by.trim() === ''" class="text-xs text-slate-400 italic flex items-center">暂无提供者</span>
+                    </div>
+
+                    <div class="relative">
+                        <select @change="addProvider($event)" class="input-field appearance-none cursor-pointer" :value="''">
+                            <option value="" disabled selected>-- 点击选择并添加渠道作为提供者 --</option>
+                            <option v-for="name in channelNames.filter(n => !(currentModel.owned_by || '').split(/[,，/]/).map(p=>p.trim()).includes(n))" :key="name" :value="name">添加: {{ name }}</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+                    </div>
                 </div>
 
                 <div class="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl">
@@ -827,12 +878,17 @@
                     return Math.min(100, Math.floor((total / 100) * 100));
                 });
                 const searchQuery = ref('');
-                const typeFilter = ref('all');
+                const channelFilter = ref('all');
+
+                const channelNames = computed(() => {
+                    const names = accounts.value.map(a => a.name).filter(Boolean);
+                    return [...new Set(names)].sort();
+                });
 
 
                 
                 const newAcc = ref({ 
-                    type: 'doubao', name: '', token: '', 
+                    type: 'doubao', name: '', token: '', remark: '',
                     apiKey: '', baseUrl: '', weight: 1, 
                     limitImage: 60, limitVideo: 0,
                     isChat: true, isImage: true, isVideo: false,
@@ -840,12 +896,12 @@
                     models: '', modelMapping: ''
                 });
                 const editingId = ref(null);
-                const modal = ref({ show: false, title: 'Add Account', desc: 'Add a new native or proxy account to the pool.' });
+                const modal = ref({ show: false, title: 'Add Channel', desc: 'Add a new channel with one or more keys.' });
                 const toasts = ref([]);
 
                 const navItems = [
                     { id: 'dashboard', name: '仪表盘', icon: 'layout-dashboard' },
-                    { id: 'accounts', name: '账号管理', icon: 'users' },
+                    { id: 'accounts', name: '渠道管理', icon: 'users' },
                     { id: 'models', name: '模型管理', icon: 'box' },
                     { id: 'usage', name: '统计分析', icon: 'line-chart' },
                     { id: 'settings', name: '系统设置', icon: 'settings' },
@@ -855,7 +911,7 @@
                 const currentPageDesc = computed(() => {
                     const dict = {
                         'dashboard': '系统核心数据看板。',
-                        'accounts': '实时监控与账号调度管理。',
+                        'accounts': '实时监控与渠道调度管理。',
                         'models': '管理可用的模型版本与上游映射。',
                         'usage': '多维分析接口消耗趋势。',
                         'settings': '全局参数定义与行为约束。'
@@ -868,8 +924,8 @@
                         const matchesSearch = !searchQuery.value || 
                             a.name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
                             a.id?.toLowerCase().includes(searchQuery.value.toLowerCase());
-                        const matchesType = typeFilter.value === 'all' || a.type === typeFilter.value;
-                        return matchesSearch && matchesType;
+                        const matchesChannel = channelFilter.value === 'all' || a.name === channelFilter.value;
+                        return matchesSearch && matchesChannel;
                     });
                 });
                 const modelSearchQuery = ref('');
@@ -909,7 +965,7 @@
                     const enabled = stats.value.enabledAccounts || 0;
                     const efficiency = total > 0 ? Math.round((enabled / total) * 100) : 0;
                     return [
-                        { label: '账号启用率', value: efficiency },
+                        { label: '渠道启用率', value: efficiency },
                         { label: '系统稳定性', value: 100 },
                         { label: '服务可用性', value: stats.value.enabledAccounts > 0 ? 100 : 0 }
                     ];
@@ -991,17 +1047,17 @@
                 const openModal = (mode, acc = null) => {
                     if(mode === 'add') {
                         editingId.value = null;
-                        newAcc.value = { type: 'doubao', name: '', token: '', weight: 1, limitImage: 60, limitVideo: 0, isChat: true, isImage: true, isVideo: false, skipHealthCheck: false, models: '', modelMapping: '' };
+                        newAcc.value = { type: 'doubao', name: '', token: '', remark: '', weight: 1, limitImage: 60, limitVideo: 0, isChat: true, isImage: true, isVideo: false, skipHealthCheck: false, models: '', modelMapping: '' };
                         modal.value = { 
-                            show: true, titleCn: '添加账号', 
-                            descCn: '安全地将新的原生或代理账号加入调度池。' 
+                            show: true, titleCn: '添加渠道', 
+                            descCn: '安全地将新的原生或代理渠道加入调度池。' 
                         };
                     } else {
                         editingId.value = acc.id;
                         newAcc.value = { ...acc };
                         modal.value = { 
-                            show: true, titleCn: '编辑账号', 
-                            descCn: '调整账号权重分配、额度限制及运行参数。' 
+                            show: true, titleCn: '编辑渠道', 
+                            descCn: '调整渠道权重分配、额度限制及运行参数。' 
                         };
                     }
                     refreshIcons();
@@ -1025,7 +1081,7 @@
 
                         closeModal();
                         fetchData();
-                        showToast('成功', editingId.value ? '已成功更新账号配置。' : '账号已加入调度池。', 'success');
+                        showToast('成功', editingId.value ? '已成功更新渠道配置。' : '渠道已加入调度池。', 'success');
                     } catch (e) {
                         showToast('操作异常', e.message, 'error');
                     } finally {
@@ -1043,7 +1099,7 @@
                         });
                         if (!res.ok) throw new Error("Toggle failed");
                         await fetchData();
-                        showToast('状态更新', `已${!acc.enabled ? '启动' : '暂停'}账号。`, 'success');
+                        showToast('状态更新', `已${!acc.enabled ? '启动' : '暂停'}渠道。`, 'success');
                     } catch(e) {
                         showToast('操作失败', e.message, 'error');
                     } finally {
@@ -1061,7 +1117,7 @@
                         });
                         if (!res.ok) throw new Error("Reset failed");
                         await fetchData();
-                        showToast('计数重置', '该账号今日消耗数据已清空。', 'success');
+                        showToast('计数重置', '该渠道今日消耗数据已清空。', 'success');
                     } catch(e) {
                         showToast('操作失败', e.message, 'error');
                     } finally {
@@ -1074,6 +1130,44 @@
                     await fetch(`/admin/accounts/${id}`, { method: 'DELETE', headers: getHeaders() });
                     fetchData();
                     showToast('移除成功', '账号已从系统中彻底删除。', 'success');
+                };
+
+                const toggleChannelGroup = async (name, enabled) => {
+                    if (!confirm(`确定要批量${enabled ? '启动' : '暂停'}【${name}】下的所有 API Key 吗？`)) return;
+                    loading.value = true;
+                    try {
+                        const res = await fetch(`/admin/channels/${encodeURIComponent(name)}/toggle`, {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            body: JSON.stringify({ enabled })
+                        });
+                        if (!res.ok) throw new Error("Toggle group failed");
+                        await fetchData();
+                        showToast('批量操作完成', `已${enabled ? '启动' : '暂停'}渠道【${name}】。`, 'success');
+                    } catch(e) {
+                        showToast('操作失败', e.message, 'error');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const deleteChannelGroup = async (name) => {
+                    if (!confirm(`⚠️ 危险操作：确实要彻底注销【${name}】渠道及其下的所有 API Key 吗？此操作不可逆！`)) return;
+                    loading.value = true;
+                    try {
+                        const res = await fetch(`/admin/channels/${encodeURIComponent(name)}`, { 
+                            method: 'DELETE', 
+                            headers: getHeaders() 
+                        });
+                        if (!res.ok) throw new Error("Delete group failed");
+                        channelFilter.value = 'all'; // Reset filter after deletion
+                        await fetchData();
+                        showToast('批量移除成功', `渠道【${name}】已整体移除。`, 'success');
+                    } catch (e) {
+                        showToast('操作失败', e.message, 'error');
+                    } finally {
+                        loading.value = false;
+                    }
                 };
 
                 const saveSettings = async () => {
@@ -1165,14 +1259,29 @@
 
                 return {
                     activePage, isDark, loading, version, authorized, loginPass, loginError, passChange,
-                    stats, accounts, settings, policies, storagePercent, searchQuery, typeFilter,
+                    stats, accounts, settings, policies, storagePercent, searchQuery, channelFilter, channelNames,
                     newAcc, editingId, modal, toasts, navItems, currentPageTitle, currentPageDesc,
                     filteredAccounts, requestMix, tokenChartData,
                     usageChartData, resourceEfficiency,
                     toggleTheme, login, logout, fetchData, openModal, closeModal, submitAccount, 
-                    toggleAccount, resetAccount, deleteAccount, saveSettings, savePolicies,
-                    savePolicies,
+                    toggleAccount, resetAccount, deleteAccount, toggleChannelGroup, deleteChannelGroup, saveSettings, savePolicies,
+                    addProvider: (e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        let existing = currentModel.value.owned_by ? currentModel.value.owned_by.split(/[,，/]/).map(p=>p.trim()).filter(Boolean) : [];
+                        if (!existing.includes(val)) {
+                            existing.push(val);
+                            currentModel.value.owned_by = existing.join(', ');
+                        }
+                        e.target.value = '';
+                    },
+                    removeProvider: (name) => {
+                        let existing = currentModel.value.owned_by ? currentModel.value.owned_by.split(/[,，/]/).map(p=>p.trim()).filter(Boolean) : [];
+                        existing = existing.filter(p => p !== name);
+                        currentModel.value.owned_by = existing.join(', ');
+                    },
                     addPolicy, removePolicy,
+
                     formatNumber, statusStyle, getStatusCn,
                     modelSearchQuery, modelEnabledFilter, modelModal, currentModel, filteredModels, models,
                     openModelModal: (mode, m = null) => {

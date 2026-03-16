@@ -48,6 +48,8 @@ export interface Account {
   models?: string; 
   // New: 模型重定向映射 JSON (如 {"doubao-image": "Seedream 4.5"})
   modelMapping?: string; 
+  // New: 备注，用于区分同一渠道下的不同 Key
+  remark?: string;
 
   // 统计与限制
   limitChat: number;  // -1 表示不限
@@ -233,12 +235,10 @@ class AccountManager extends EventEmitter {
     if (total === 0) return null;
 
     const now = Date.now();
-    
-    // 从上次索引的下一个开始循环
-    for (let i = 1; i <= total; i++) {
-        const index = (this.lastRoundRobinIndex + i) % total;
-        const a = this.accounts[index];
+    const availableAccounts: Account[] = [];
 
+    // 第一步：筛选出所有当前符合条件（存活、空闲、有额度、匹配模型）的账号
+    for (const a of this.accounts) {
         if (!a.enabled) continue;
         
         // 检查状态码策略导致的冷却
@@ -266,11 +266,22 @@ class AccountManager extends EventEmitter {
         if (type === 'image' && a.usageImage >= a.limitImage) continue;
         if (type === 'video' && a.usageVideo >= a.limitVideo) continue;
         
-        this.lastRoundRobinIndex = index;
-        return a;
+        availableAccounts.push(a);
     }
 
-    return null;
+    if (availableAccounts.length === 0) return null;
+
+    // 第二步：按权重降序排序
+    availableAccounts.sort((a, b) => (b.weight || 1) - (a.weight || 1));
+
+    // 第三步：取出所有最高权重的账号
+    const highestWeight = availableAccounts[0].weight || 1;
+    const topWeightAccounts = availableAccounts.filter(a => (a.weight || 1) === highestWeight);
+
+    // 第四步：在最高权重的账号池中进行轮询，以分散请求压力
+    // 这里借用并更新 lastRoundRobinIndex 实现简单的伪轮询选择
+    this.lastRoundRobinIndex = (this.lastRoundRobinIndex + 1) % topWeightAccounts.length;
+    return topWeightAccounts[this.lastRoundRobinIndex];
   }
 
 
@@ -380,43 +391,82 @@ class AccountManager extends EventEmitter {
       };
   }
 
-  public async addAccount(token: string, name: string, limits: any = {}, extra: any = {}) {
-    const newAccount: Account = {
-      id: util.uuid(),
-      token,
-      name: name || `账号 ${this.accounts.length + 1}`,
-      enabled: true,
-      type: extra.type || "doubao",
-      weight: extra.weight || 1,
-      baseUrl: extra.baseUrl || "",
-      apiKey: extra.apiKey || "",
-      capability: extra.capability || undefined,
-      modelName: extra.modelName || "",
-      models: extra.models || "",
-      modelMapping: extra.modelMapping || "",
-      deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
-      webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
-      userId: util.uuid(false),
-      limitChat: limits.chat !== undefined ? limits.chat : -1,
-      limitImage: limits.image !== undefined ? limits.image : 60,
-      limitVideo: limits.video !== undefined ? limits.video : 0,
-      usageChat: 0,
-      usageImage: 0,
-      usageVideo: 0,
-      totalUsage: 0,
-      totalPromptTokens: 0,
-      totalCompletionTokens: 0,
-      skipHealthCheck: !!extra.skipHealthCheck,
-      status: AccountStatus.IDLE,
-      lastUsed: 0,
-      cooldownUntil: 0,
-      cooldownReason: ""
-    };
+  /**
+   * 将账号支持的模型同步到 ModelManager
+   */
+  private async syncModels(modelsStr: string, provider: string) {
+    if (!modelsStr || modelsStr.trim().length === 0) return;
+    const modelIds = modelsStr.split(",").map((m) => m.trim()).filter(m => m.length > 0);
+    for (const id of modelIds) {
+      await ModelManager.addOrUpdateModel({
+        id,
+        object: "model",
+        owned_by: provider || "doubao-free-api",
+        type: "chat", // 默认为 chat，用户可以在模型管理手动修改
+        enabled: true
+      });
+    }
+  }
 
-    this.accounts.push(newAccount);
+  public async addAccount(token: string, name: string, limits: any = {}, extra: any = {}) {
+    // 支持批量添加：如果 token 包含换行，拆分为多个
+    const tokens = token.split(/\r?\n/).map(t => t.trim()).filter(t => t.length > 0);
+    
+    // 如果 token 为空但有 apiKey (OpenAI 类型)，也作为单个处理
+    if (tokens.length === 0 && extra.apiKey) {
+        tokens.push(""); 
+    }
+
+    const channelName = name || `渠道 ${this.accounts.length + 1}`;
+    const createdAccounts: Account[] = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        const newAccount: Account = {
+          id: util.uuid(),
+          token: t,
+          name: channelName,
+          remark: tokens.length > 1 ? `Key ${i + 1}` : (extra.remark || ''),
+          enabled: true,
+          type: extra.type || "doubao",
+          weight: extra.weight || 1,
+          baseUrl: extra.baseUrl || "",
+          apiKey: extra.apiKey || "",
+          capability: extra.capability || undefined,
+          modelName: extra.modelName || "",
+          models: extra.models || "",
+          modelMapping: extra.modelMapping || "",
+          deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+          webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
+          userId: util.uuid(false),
+          limitChat: limits.chat !== undefined ? limits.chat : -1,
+          limitImage: limits.image !== undefined ? limits.image : 60,
+          limitVideo: limits.video !== undefined ? limits.video : 0,
+          usageChat: 0,
+          usageImage: 0,
+          usageVideo: 0,
+          totalUsage: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          skipHealthCheck: !!extra.skipHealthCheck,
+          status: AccountStatus.IDLE,
+          lastUsed: 0,
+          cooldownUntil: 0,
+          cooldownReason: ""
+        };
+
+        this.accounts.push(newAccount);
+        createdAccounts.push(newAccount);
+        
+        // 同步模型
+        if (extra.models) {
+            await this.syncModels(extra.models, newAccount.name);
+        }
+    }
+
     await this.saveAccounts();
     this.processQueue();
-    return newAccount;
+    return createdAccounts.length === 1 ? createdAccounts[0] : createdAccounts;
   }
 
   public async updateAccount(id: string, updates: Partial<Account>) {
@@ -431,10 +481,50 @@ class AccountManager extends EventEmitter {
       
       this.accounts[index] = { ...this.accounts[index], ...updates };
       if (!wasEnabled && updates.enabled) this.processQueue();
+      if (updates.models) await this.syncModels(updates.models, this.accounts[index].name);
       await this.saveAccounts();
       return this.accounts[index];
     }
     return null;
+  }
+
+  /**
+   * 按名称一键启用/禁用整个渠道（包含多个 Key）
+   */
+  public async toggleChannel(name: string, enabled: boolean) {
+      let updatedCount = 0;
+      let wasEnabledCount = 0;
+      
+      this.accounts = this.accounts.map(a => {
+          if (a.name === name) {
+              if (a.enabled) wasEnabledCount++;
+              updatedCount++;
+              return { ...a, enabled };
+          }
+          return a;
+      });
+
+      if (updatedCount > 0) {
+          if (wasEnabledCount === 0 && enabled) {
+              this.processQueue(); // 有节点重新启用，唤醒队列
+          }
+          await this.saveAccounts();
+      }
+      return updatedCount;
+  }
+
+  /**
+   * 按名称一键删除整个渠道（包含多个 Key）
+   */
+  public async deleteChannel(name: string) {
+      const originalLength = this.accounts.length;
+      this.accounts = this.accounts.filter((a) => a.name !== name);
+      const deletedCount = originalLength - this.accounts.length;
+      
+      if (deletedCount > 0) {
+          await this.saveAccounts();
+      }
+      return deletedCount;
   }
 
   /**

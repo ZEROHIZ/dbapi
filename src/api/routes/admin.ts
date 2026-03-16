@@ -137,9 +137,22 @@ export default {
             }
             ModelManager.addOrUpdateModel(model);
             return new SuccessfulBody({ message: "Model saved" });
+        }),
+        '/admin/channels/:name/toggle': withAuth(async (req: any) => {
+            const { name } = req.params;
+            const { enabled } = req.body;
+            const decodedName = decodeURIComponent(name);
+            const updatedCount = await AccountManager.toggleChannel(decodedName, enabled);
+            return new SuccessfulBody({ message: `Toggled ${updatedCount} keys for channel ${decodedName}` });
         })
     },
     delete: {
+        '/admin/channels/:name': withAuth(async (req: any) => {
+            const { name } = req.params;
+            const decodedName = decodeURIComponent(name);
+            const deletedCount = await AccountManager.deleteChannel(decodedName);
+            return new SuccessfulBody({ message: `Deleted ${deletedCount} keys for channel ${decodedName}` });
+        }),
         '/admin/accounts/:id': withAuth(async (req: any) => {
             const { id } = req.params;
             await AccountManager.deleteAccount(id);
