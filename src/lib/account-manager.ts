@@ -400,6 +400,7 @@ class AccountManager extends EventEmitter {
     for (const id of modelIds) {
       await ModelManager.addOrUpdateModel({
         id,
+        backendModel: id,
         object: "model",
         owned_by: provider || "doubao-free-api",
         type: "chat", // 默认为 chat，用户可以在模型管理手动修改

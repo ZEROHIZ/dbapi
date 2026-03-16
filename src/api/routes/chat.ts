@@ -6,6 +6,7 @@ import chat from '@/api/controllers/chat.ts';
 import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import logger from '@/lib/logger.ts';
 import AccountManager from '@/lib/account-manager.ts';
+import ModelManager from '@/lib/model-manager.ts';
 
 
 export default {
@@ -36,9 +37,28 @@ export default {
 
             const {model, conversation_id: convId, messages, stream, tools, auto_delete} = request.body;
             const autoDelete = _.isBoolean(auto_delete) ? auto_delete : true;
-            let assistantId = model && /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
+
+            // Bug 2 Fix: 如果是池化模式，提前验证模型是否存在，若不存在则立即返回错误，不进入排队
+            if (isPooled && model) {
+                const modelConfig = ModelManager.getModelConfig(model);
+                if (!modelConfig) {
+                    return new Response({ code: 404, msg: `模型 '${model}' 不存在，请检查模型管理配置。` }, { statusCode: 404 });
+                }
+            }
+
+            // Bug 1 Fix: 解析 backendModel，如果模型有后端映射名，则用于实际API调用
+            let resolvedBackendModel = model;
+            if (model) {
+                const modelConfig = ModelManager.getModelConfig(model);
+                if (modelConfig && modelConfig.backendModel) {
+                    resolvedBackendModel = modelConfig.backendModel;
+                    logger.info(`[ModelRouter] 模型映射: ${model} -> ${resolvedBackendModel}`);
+                }
+            }
+
+            let assistantId = resolvedBackendModel && /^[a-z0-9]{24,}$/.test(resolvedBackendModel) ? resolvedBackendModel : undefined;
             if (!assistantId && account) {
-                const mapped = AccountManager.getMappedModel(account.id, model);
+                const mapped = AccountManager.getMappedModel(account.id, resolvedBackendModel);
                 if (mapped && /^[a-z0-9]{24,}$/.test(mapped)) {
                     assistantId = mapped;
                 }
@@ -52,8 +72,8 @@ export default {
                 attempt++;
                 try {
                     if (isPooled) {
-                        // Re-acquire token for each attempt if pooled
-                        account = await AccountManager.acquireToken('chat', model);
+                        // Bug 1 Fix: 使用解析后的后端模型名称来匹配账号池中的支持列表
+                        account = await AccountManager.acquireToken('chat', resolvedBackendModel);
                     }
                     
                     if (isPooled && account.type === 'openai') {

@@ -122,3 +122,44 @@ while (attempt < maxRetries) {
 ### 经验与教训
 - **层级关系要清晰**：渠道是逻辑分组单位，Key 是具体的认证凭据。不应将两者混为一谈。
 - **批量操作要保持一致性**：批量创建的实体应共享父级属性（名称），而不是自动拆分为独立实体。
+
+---
+
+## Bug #6: Vue 3 响应式解构导致查询参数丢失
+
+**日期**：2026-03-16
+
+### 问题描述
+在模型管理界面中，当用户修改“公开调用名”(Model ID) 并保存时，后端没有如期触发 ID 的修改，而是直接新增了一个模型，或者报错未找到原模型。即便发送了网络请求，URL 上的 `?oldId=` 始终为 `undefined` 或空。
+
+### 根本原因
+Vue 3 的 `setup(props)` 和组合式 API 中，试图用普通变量（非 `ref` 或非 `reactive` 属性）保存页面组件的状态（例如 `let originalModelId = ''`），并在异步或子方法中引用它。当双向绑定的表单执行回调时，由于非响应式变量的值引用丢失或发生遮蔽，拼接到 URL 上的 `oldId` 变为 undefined 导致后端无法识别“旧模型 ID”，进而执行了普通的 `addModel` 操作而不是重命名（删除旧的，添加新的）。
+
+### 修复方案
+将原本的普通变量声明改写为真正的响应式代理 `const originalModelId = ref('')`，并且在赋值时严格使用 `originalModelId.value = m.id`。
+
+### 经验与教训
+- **Vue 3 组合式 API 陷阱**：凡是需要在模板事件或异步请求中被读取的组件级状态缓存，必须使用 `ref` 包裹，切勿使用普通的 `let` 或 `const`。只有被挂载并且响应式的变量，才能在后续的交互中安全保留并传递正确的值。
+
+---
+
+## Bug #7: 模型隐式同步覆盖原配置缺陷
+
+### 问题描述
+在添加“渠道”时，如果在“支持模型”的输入框里填写了一个系统库（`ModelManager`）中**已经存在**的模型，系统的隐式同步函数（`syncModels`）会直接用默认值覆盖并重写原来的 `backendModel`, `type` 等配置，导致模型管理里的高级设置丢失。
+
+### 根本原因
+`AccountManager.syncModels` 中仅仅构造了一个全新的 `ModelConfig` 并调用 `addOrUpdateModel`。而 `addOrUpdateModel` 中使用了对象展开语法 `{ ...existing, ...config }`，这导致新传入的硬编码属性（如 `type: "chat"`）彻底覆写了持久化的旧属性。
+
+### 修复方案
+在 `syncModels` 中，首先通过 `ModelManager.getModelConfig(id)` 获取此模型当前是否已存在。在通过 `addOrUpdateModel` 同步时，利用空值合并或逻辑或操作符，**优先保留 existing 里的值**。并且确保对于**全新**的模型，将其 `backendModel` 默认值设置为它的 `id`，以满足用户的期待（避免空映射带来困扰）。
+```typescript
+{
+   ...
+   backendModel: existing?.backendModel || id,
+   type: existing?.type || "chat"
+}
+```
+
+### 经验与教训
+- **防覆盖保护与增量更新**：在使用展开语法合并对象时，必须极为小心右侧配置对象的“副作用”。隐式自动生成实体的逻辑必须设计为“增量补充模式”，在任何情况下都不能静默覆盖用户手动更改过的重要设置。

@@ -132,10 +132,19 @@ export default {
         }),
         '/admin/models': withAuth(async (req: any) => {
             const model = req.body;
+            const { oldId } = req.query;
+            
             if (!model || !model.id) {
                 return new Response({ code: 400, msg: "Model ID is required" }, { statusCode: 400 });
             }
-            ModelManager.addOrUpdateModel(model);
+
+            // 处理重命名：如果提供了原 ID 且与新 ID 不同，则删除旧 ID 记录
+            if (oldId && oldId !== model.id) {
+                const decodedOldId = decodeURIComponent(oldId as string);
+                await ModelManager.deleteModel(decodedOldId);
+            }
+
+            await ModelManager.addOrUpdateModel(model, false);
             return new SuccessfulBody({ message: "Model saved" });
         }),
         '/admin/channels/:name/toggle': withAuth(async (req: any) => {

@@ -147,7 +147,7 @@ def test_chat():
     prompt = input("请输入你想对豆包说的话 (默认: 你好，请自我介绍一下): ") or "你好，请自我介绍一下"
     
     payload = {
-        "model": "doubao",
+        "model": "doubao1",
         "messages": [
             {
                 "role": "user",

@@ -702,11 +702,27 @@
 
                 <!-- Models & Mapping -->
                 <div class="col-span-full space-y-1.5 border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">支持模型 (逗号分隔，留空则支持全部，会自动同步到模型列表)</label>
-                    <input v-model="newAcc.models" type="text" placeholder="例如：doubao-pro,doubao-lite" class="input-field" list="model-suggestions">
-                    <datalist id="model-suggestions">
-                        <option v-for="m in models" :key="m.id" :value="m.id"></option>
-                    </datalist>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">支持模型 (留空则支持全部该类型模型)</label>
+                    <div class="flex flex-wrap gap-2 mb-2 p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900/50 min-h-[48px]">
+                        <template v-if="newAcc.models">
+                            <span v-for="mod in newAcc.models.split(/[,，/]/).map(m=>m.trim()).filter(Boolean)" :key="mod" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-medium">
+                                {{ mod }}
+                                <button @click="removeSupportedModel(mod)" class="hover:bg-indigo-500/20 rounded-full p-0.5" title="移出支持列表">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </span>
+                        </template>
+                        <span v-else class="text-xs text-slate-400 flex items-center">暂未指定模型 (默认匹配所有)</span>
+                    </div>
+                    <div class="relative">
+                        <input type="text" @keydown.enter.prevent="addSupportedModel($event)" placeholder="+ 输入或选择支持的模型... (支持逗号分隔多个，按回车添加)" class="input-field" list="available-models">
+                        <datalist id="available-models">
+                            <option v-for="m in models.filter(mod => !(newAcc.models || '').split(/[,，/]/).map(x=>x.trim()).includes(mod.id))" :key="m.id" :value="m.id">
+                                {{ m.id }}
+                            </option>
+                        </datalist>
+                        <i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+                    </div>
                 </div>
                 <div class="col-span-full space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">模型映射 (JSON 格式，用于重定向模型 ID)</label>
@@ -741,8 +757,8 @@
             <div class="space-y-6">
                 <div class="space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">公开调用名 (OpenAI Model ID)</label>
-                    <input v-model="currentModel.id" type="text" placeholder="例如：doubao-pro" :disabled="modelModal.isEdit" class="input-field disabled:opacity-50">
-                    <div class="text-[9px] text-slate-400">调用 API 时使用的名字。系统会自动将其映射到后端 ID。</div>
+                    <input v-model="currentModel.id" type="text" placeholder="例如：doubao-pro" class="input-field">
+                    <div class="text-[9px] text-slate-400">调用 API 时使用的名字。系统会自动将其映射到后端 ID。您可以随意修改它。</div>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
@@ -932,6 +948,7 @@
                 const modelEnabledFilter = ref('all');
                 const modelModal = ref({ show: false, isEdit: false });
                 const currentModel = ref({ id: '', backendModel: '', type: 'chat', owned_by: 'doubao-free-api', enabled: true, object: 'model' });
+                const originalModelId = ref('');
 
                 const filteredModels = computed(() => {
                     return models.value.filter(m => {
@@ -1280,20 +1297,46 @@
                         existing = existing.filter(p => p !== name);
                         currentModel.value.owned_by = existing.join(', ');
                     },
+                    addSupportedModel: (e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        const newModels = val.split(/[,，\s]/).map(m => m.trim()).filter(Boolean);
+                        const current = (newAcc.value.models || '').split(/[,，/]/).map(m => m.trim()).filter(Boolean);
+                        
+                        let updated = false;
+                        for (const newMod of newModels) {
+                            if (!current.includes(newMod)) {
+                                current.push(newMod);
+                                updated = true;
+                            }
+                        }
+                        
+                        if (updated) {
+                            newAcc.value.models = current.join(', ');
+                        }
+                        e.target.value = '';
+                    },
+                    removeSupportedModel: (mod) => {
+                        const current = (newAcc.value.models || '').split(/[,，/]/).map(m => m.trim()).filter(Boolean);
+                        newAcc.value.models = current.filter(m => m !== mod).join(', ');
+                    },
                     addPolicy, removePolicy,
 
                     formatNumber, statusStyle, getStatusCn,
                     modelSearchQuery, modelEnabledFilter, modelModal, currentModel, filteredModels, models,
+                    originalModelId,
                     openModelModal: (mode, m = null) => {
                         modelModal.value.show = true;
                         modelModal.value.isEdit = mode === 'edit';
+                        originalModelId.value = m ? m.id : '';
                         if(m) currentModel.value = { ...m };
                         else currentModel.value = { id: '', backendModel: '', type: 'chat', owned_by: 'doubao-free-api', enabled: true, object: 'model' };
                         refreshIcons();
                     },
                     saveModel: async () => {
                         try {
-                            const res = await fetch('/admin/models', {
+                            const url = `/admin/models${modelModal.value.isEdit && originalModelId.value ? '?oldId=' + encodeURIComponent(originalModelId.value) : ''}`;
+                            const res = await fetch(url, {
                                 method: 'POST',
                                 headers: getHeaders(),
                                 body: JSON.stringify(currentModel.value)
@@ -1302,6 +1345,10 @@
                                 showToast('保存成功', '模型配置已更新。', 'success');
                                 modelModal.value.show = false;
                                 fetchData();
+                            } else {
+                                let errMsg = `HTTP ${res.status}`;
+                                try { const errBody = await res.json(); errMsg = errBody.msg || errBody.message || errMsg; } catch {}
+                                showToast('保存失败', errMsg, 'error');
                             }
                         } catch(e) { showToast('保存失败', e.message, 'error'); }
                     },
