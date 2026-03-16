@@ -351,8 +351,8 @@
                                                 <span class="font-bold">{{ acc.weight || 1 }}</span>
                                             </div>
                                             <div class="flex justify-between w-32 mt-1">
-                                                <span class="text-slate-400">消耗 (图/视)</span>
-                                                <span class="font-bold text-primary">{{ acc.usageImage }}/{{ acc.limitImage }} , {{ acc.usageVideo }}/{{ acc.limitVideo }}</span>
+                                                <span class="text-slate-400">消耗 (图/视/聊)</span>
+                                                <span class="font-bold text-primary">{{ acc.usageImage }}/{{ acc.limitImage }}, {{ acc.usageVideo }}/{{ acc.limitVideo }}, {{ acc.usageChat }}</span>
                                             </div>
                                         </div>
                                     </td>
@@ -658,6 +658,19 @@
                             <option value="new">强制创建新别名</option>
                         </select>
                     </div>
+                </div>
+                <div class="col-span-1 space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">权重 (数值越高权重越大)</label>
+                    <input v-model.number="newAcc.weight" type="number" placeholder="1" class="input-field">
+                </div>
+                
+                <div class="col-span-1 space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">图片每日限制</label>
+                    <input v-model.number="newAcc.limitImage" type="number" placeholder="60" class="input-field">
+                </div>
+                <div class="col-span-1 space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">视频每日限制</label>
+                    <input v-model.number="newAcc.limitVideo" type="number" placeholder="0" class="input-field">
                 </div>
                 <div class="col-span-full space-y-1.5">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">渠道类型</label>

@@ -5,6 +5,8 @@ import Response from '@/lib/response/Response.ts';
 import video from '@/api/controllers/video.ts';
 import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import AccountManager from '@/lib/account-manager.ts';
+import APIException from '@/lib/exceptions/APIException.ts';
+import FailureBody from '@/lib/response/FailureBody.ts';
 
 
 interface VideoCompletionRequestBody {
@@ -127,6 +129,9 @@ export default {
                     }
                     throw err;
                 }
+            }
+            if (lastError instanceof APIException) {
+                return new Response(new FailureBody(lastError), { statusCode: lastError.httpStatusCode });
             }
             throw lastError;
         }

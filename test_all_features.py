@@ -6,11 +6,12 @@ import json
 
 # ================= 配置区域 =================
 # API 地址 (如果是 Docker 部署，请确保端口映射正确)
-BASE_URL = "http://localhost:5566/v1"
+BASE_URL = "http://127.0.0.1:5566/v1"
 
 # 鉴权方式：使用账号池
 HEADERS = {
     "Authorization": "Bearer pooled",
+    # "Authorization": "sk-VdJ4DV8srDJVKYzbC1eWuokjohrWRfAqu5IQG29jptOoANUj",
     "Content-Type": "application/json"
 }
 # ===========================================
@@ -147,7 +148,7 @@ def test_chat():
     prompt = input("请输入你想对豆包说的话 (默认: 你好，请自我介绍一下): ") or "你好，请自我介绍一下"
     
     payload = {
-        "model": "MiniMax/MiniMax-M2.5",
+        "model": "doubao1",
         "messages": [
             {
                 "role": "user",
@@ -155,7 +156,7 @@ def test_chat():
             }
         ],
         "stream": False,
-        "auto_delete": True
+        "auto_delete": False
     }
     
     run_request("chat/completions", payload, "chat")

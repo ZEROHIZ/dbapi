@@ -5,6 +5,8 @@ import Response from '@/lib/response/Response.ts';
 import images from '@/api/controllers/images.ts';
 import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import AccountManager from '@/lib/account-manager.ts';
+import APIException from '@/lib/exceptions/APIException.ts';
+import FailureBody from '@/lib/response/FailureBody.ts';
 
 
 // 定义图片生成请求体的类型（可选，增强类型提示）
@@ -158,6 +160,9 @@ export default {
                     }
                     throw err;
                 }
+            }
+            if (lastError instanceof APIException) {
+                return new Response(new FailureBody(lastError), { statusCode: lastError.httpStatusCode });
             }
             throw lastError;
         }

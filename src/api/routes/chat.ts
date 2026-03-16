@@ -7,6 +7,8 @@ import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import logger from '@/lib/logger.ts';
 import AccountManager from '@/lib/account-manager.ts';
 import ModelManager from '@/lib/model-manager.ts';
+import APIException from '@/lib/exceptions/APIException.ts';
+import FailureBody from '@/lib/response/FailureBody.ts';
 
 
 export default {
@@ -122,6 +124,9 @@ export default {
                     }
                     throw err;
                 }
+            }
+            if (lastError instanceof APIException) {
+                return new Response(new FailureBody(lastError), { statusCode: lastError.httpStatusCode });
             }
             throw lastError;
         }

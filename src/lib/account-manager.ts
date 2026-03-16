@@ -7,6 +7,7 @@ import axios from "axios";
 import { EventEmitter } from "events";
 import ResponsePolicyManager, { PolicyAction } from "./response-policy.ts";
 import ModelManager from "./model-manager.ts";
+import APIException from './exceptions/APIException.ts';
 
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -247,10 +248,18 @@ class AccountManager extends EventEmitter {
     }
   }
 
-  // 计算某类服务的总剩余额度 (如果是无限则返回一个极大值)
-  public getTotalRemainingUsage(type: RequestType = 'chat'): number {
+  // 计算某类服务或特定模型的总剩余额度 (如果是无限则返回一个极大值)
+  public getTotalRemainingUsage(type: RequestType = 'chat', modelId?: string): number {
       return this.accounts
-          .filter(a => a.enabled)
+          .filter(a => {
+              if (!a.enabled) return false;
+              if (modelId && a.models && a.models.trim().length > 0) {
+                  const supportedModels = a.models.split(/[,，]/).map(m => m.trim());
+                  if (!supportedModels.includes(modelId)) return false;
+              }
+              if (a.type === 'openai' && a.capability && a.capability !== type) return false;
+              return true;
+          })
           .reduce((sum, a) => {
               if (type === 'chat') return a.limitChat === -1 ? sum + 999999 : sum + Math.max(0, a.limitChat - a.usageChat);
               if (type === 'image') return sum + Math.max(0, a.limitImage - a.usageImage);
@@ -280,7 +289,7 @@ class AccountManager extends EventEmitter {
         if (modelId) {
             // 1. 如果账号配置了 specific models，则必须包含该模型
             if (a.models && a.models.trim().length > 0) {
-                const supportedModels = a.models.split(',').map(m => m.trim());
+                const supportedModels = a.models.split(/[,，]/).map(m => m.trim());
                 if (!supportedModels.includes(modelId)) continue;
             }
         }
@@ -316,20 +325,34 @@ class AccountManager extends EventEmitter {
 
   public acquireToken(type: RequestType = 'chat', modelId?: string): Promise<Account> {
     return new Promise((resolve, reject) => {
-      const remaining = this.getTotalRemainingUsage(type);
-      
-      // 简单流控：如果剩余为0，拒绝
-      // 注意：对于chat如果是-1，remaining会很大
-      if (remaining <= 0) {
-          return reject(new Error(`系统今日 [${type}] 额度已耗尽。`));
+      // 1. 检查是否有任何账号支持该请求
+      const existsCapable = this.accounts.some(a => {
+          if (!a.enabled) return false;
+          if (modelId && a.models && a.models.trim().length > 0) {
+              const supportedModels = a.models.split(/[,，]/).map(m => m.trim());
+              if (!supportedModels.includes(modelId)) return false;
+          }
+          if (a.type === 'openai' && a.capability && a.capability !== type) return false;
+          return true;
+      });
+
+      if (!existsCapable) {
+          return reject(new APIException([-403, `没有找到支持 [${type}${modelId ? ':' + modelId : ''}] 的活跃渠道，请检查配置。`]));
       }
 
+      // 2. 检查这些支持账号的剩余额度
+      const remaining = this.getTotalRemainingUsage(type, modelId);
+      if (remaining <= 0) {
+          return reject(new APIException([-403, `系统今日 [${type}${modelId ? ':' + modelId : ''}] 额度已耗尽。`]));
+      }
+
+      // 3. 尝试获取空闲账号
       const account = this.tryGetAvailableAccount(type, modelId);
       if (account) {
         this.lockAccount(account, type);
         resolve(account);
       } else {
-        // 进入队列
+        // 4. 进入队列 (只有在确实有额度只是暂时忙碌时才进入队列)
         this.queue.push({ type, modelId, resolve: (account: Account) => resolve(account), reject });
         logger.info(`[AccountManager] 暂无空闲账号，请求 [${type}:${modelId || 'any'}] 进入队列。当前排队: ${this.queue.length}`);
       }
