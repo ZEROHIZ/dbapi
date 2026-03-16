@@ -6,7 +6,7 @@ import json
 
 # ================= 配置区域 =================
 # API 地址 (如果是 Docker 部署，请确保端口映射正确)
-BASE_URL = "http://192.168.110.30:7000/v1"
+BASE_URL = "http://localhost:5566/v1"
 
 # 鉴权方式：使用账号池
 HEADERS = {
@@ -154,7 +154,8 @@ def test_chat():
                 "content": prompt
             }
         ],
-        "stream": False
+        "stream": False,
+        "auto_delete": True
     }
     
     run_request("chat/completions", payload, "chat")

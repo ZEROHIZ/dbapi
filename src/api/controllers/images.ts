@@ -230,10 +230,14 @@ async function createImageCompletion(
     },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
-    retryCount = 0
+    retryCount = 0,
+    autoDelete = true
 ) {
     return (async () => {
-        const {prompt, ratio, style, referenceImage, genModel = "Seedream 4.0"} = imageParams;
+        let {prompt, ratio, style, referenceImage, model, genModel} = imageParams;
+        if (!genModel) {
+            genModel = AccountManager.getMappedModel((account as any).id, model);
+        }
         logger.info(`收到图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}, 生图模型=${genModel}`);
         const context = normalizeAccount(account);
 
@@ -332,25 +336,15 @@ async function createImageCompletion(
             total_tokens: 0
         };
 
-        removeConversation(answer.id, context).catch(
-            (err) => console.error('移除图片生成会话失败：', err)
-        );
+        if (autoDelete) {
+            removeConversation(answer.id, context).catch(
+                (err) => console.error('移除图片生成会话失败：', err)
+            );
+        }
 
         return answer;
     })().catch((err) => {
-        if (retryCount < MAX_RETRY_COUNT) {
-            logger.error(`图片生成流响应错误: ${err.stack}`);
-            logger.warn(`${RETRY_DELAY / 1000}秒后重试...`);
-            return (async () => {
-                await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-                return createImageCompletion(
-                    imageParams,
-                    account,
-                    assistantId,
-                    retryCount + 1
-                );
-            })();
-        }
+        logger.error(`图片生成流响应错误: ${err.stack || String(err)}`);
         throw err;
     });
 }
@@ -363,14 +357,18 @@ async function createImageCompletion(
  * @param retryCount 重试次数
  */
 async function createImageCompletionStream(
-    imageParams: { model: string; prompt: string; ratio: string; style: string; referenceImage?: string },
+    imageParams: { model: string; prompt: string; ratio: string; style: string; referenceImage?: string; genModel?: string },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
-    retryCount = 0
+    retryCount = 0,
+    autoDelete = true
 ) {
     return (async () => {
-        const {prompt, ratio, style, referenceImage} = imageParams;
-        logger.info(`收到流式图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}`);
+        let {prompt, ratio, style, referenceImage, model, genModel} = imageParams;
+        if (!genModel) {
+            genModel = AccountManager.getMappedModel((account as any).id, model);
+        }
+        logger.info(`收到流式图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}, 生图模型=${genModel}`);
         const context = normalizeAccount(account);
 
         let attachments = [];
@@ -399,6 +397,9 @@ async function createImageCompletionStream(
             {
                 content: JSON.stringify({
                     text: `${prompt}\n风格：${style}\n比例：${ratio}`,
+                    model: genModel,
+                    template_type: "placeholder",
+                    use_creation: false
                 }),
                 content_type: 2009,
                 attachments: attachments, // 注入参考图
@@ -477,21 +478,9 @@ async function createImageCompletionStream(
             removeConversation(convId, context).catch(
                 (err) => console.error(err)
             );
-        }, account);
+        }, account, autoDelete);
     })().catch((err) => {
-        if (retryCount < MAX_RETRY_COUNT) {
-            logger.error(`流式图片生成响应错误: ${err.stack}`);
-            logger.warn(`${RETRY_DELAY / 1000}秒后重试...`);
-            return (async () => {
-                await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-                return createImageCompletionStream(
-                    imageParams,
-                    account,
-                    assistantId,
-                    retryCount + 1
-                );
-            })();
-        }
+        logger.error(`流式图片生成响应错误: ${err.stack || String(err)}`);
         throw err;
     });
 }
@@ -1133,7 +1122,7 @@ async function receiveStream(stream: any): Promise<any> {
  * @param stream 消息流
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function, account?: any) {
+function createTransStream(stream: any, endCallback?: Function, hasTools = false, account?: any, promptText = "", autoDelete = true) {
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();

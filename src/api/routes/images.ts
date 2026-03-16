@@ -11,9 +11,13 @@ import AccountManager from '@/lib/account-manager.ts';
 interface ImageCompletionRequestBody {
     model: string;
     prompt: string;
-    ratio: string;
-    style: string;
-    stream: boolean;
+    ratio?: string;
+    style?: string;
+    stream?: boolean;
+    n?: number;
+    size?: string;
+    response_format?: string;
+    auto_delete?: boolean;
 }
 
 export default {
@@ -44,7 +48,6 @@ export default {
             let isPooled = false;
 
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                account = await AccountManager.acquireToken('image');
                 isPooled = true;
             } else {
                 const tokens = images.tokenSplit(authHeader);
@@ -58,61 +61,103 @@ export default {
             const {
                 model,
                 prompt,
-                ratio,
+                ratio, // Keep ratio for backward compatibility if not using size
                 style,
                 stream,
-                image: referenceImage
+                image: referenceImage,
+                n, // Added
+                size, // Added
+                response_format, // Added
+                auto_delete // Added
             } = request.body as ImageCompletionRequestBody & { image?: string };
 
-            // 4. 处理智能体ID
-            const assistantId = /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
+            const autoDelete = _.isBoolean(auto_delete) ? auto_delete : true; // Determine autoDelete value
+            let assistantId = model && /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
+            if (!assistantId && account) {
+                const mapped = AccountManager.getMappedModel(account.id, model);
+                if (mapped && /^[a-z0-9]{24,}$/.test(mapped)) {
+                    assistantId = mapped;
+                }
+            }
 
-            // 5. 组装参数：传递参考图
+            // 5. 组装参数：传递参考图 (This block is now partially redundant due to direct passing in createImageCompletion calls)
             const imageParams = {
                 model,
                 prompt,
-                ratio,
-                style,
-                referenceImage // 新增参考图字段
+                ratio: size || ratio || "1:1", // Prioritize size, then ratio, then default
+                style: style || "auto", // Prioritize style, then default
+                referenceImage,
+                n,
+                response_format
             };
 
-            // 6. 调用生成方法
-            try {
-                if (isPooled && account.type === 'openai') {
-                    return await openaiProxy.proxyImage(request.body, account);
-                }
+            const maxRetries = isPooled ? 3 : 1;
+            let attempt = 0;
+            let lastError: any;
 
-                if (stream) {
-
-                    const s = await images.createImageCompletionStream(imageParams, account, assistantId);
+            while (attempt < maxRetries) {
+                attempt++;
+                try {
                     if (isPooled) {
-                        const token = account.token;
-                        s.on('end', () => AccountManager.releaseToken(token));
-                        s.on('error', () => AccountManager.releaseToken(token));
+                        account = await AccountManager.acquireToken('image', model);
                     }
-                    return new Response(s, {
-                        type: "text/event-stream",
-                        headers: {
-                            "Cache-Control": "no-cache, no-transform",
-                            "Connection": "keep-alive",
-                            "X-Accel-Buffering": "no"
+                    if (isPooled && account.type === 'openai') {
+                        return await openaiProxy.proxyImage(request.body, account);
+                    }
+
+                    if (stream) {
+                        const s = await images.createImageCompletionStream({
+                            model,
+                            prompt,
+                            ratio: size || ratio || "1:1",
+                            style: style || "auto",
+                            referenceImage
+                        }, account, assistantId, 0, autoDelete);
+                        if (isPooled) {
+                            const token = account.token;
+                            s.on('end', () => AccountManager.releaseToken(token));
+                            s.on('error', () => AccountManager.releaseToken(token));
                         }
-                    });
-                } else {
-                    const result = await images.createImageCompletion(imageParams, account, assistantId);
-                    if (isPooled) AccountManager.releaseToken(account.token);
-                    return result;
-                }
-            } catch (err: any) {
-                if (isPooled && account) {
-                    const statusCode = err.status || err.statusCode || err.response?.status;
-                    if (statusCode) {
-                        AccountManager.applyResponsePolicy(account.id, statusCode);
+                        return new Response(s, {
+                            type: "text/event-stream",
+                            headers: {
+                                "Cache-Control": "no-cache, no-transform",
+                                "Connection": "keep-alive",
+                                "X-Accel-Buffering": "no"
+                            }
+                        });
+                    } else {
+                        const result = await images.createImageCompletion({
+                            model,
+                            prompt,
+                            ratio: size || ratio || "1:1",
+                            style: style || "auto",
+                            referenceImage
+                        }, account, assistantId, 0, autoDelete);
+                        if (isPooled) AccountManager.releaseToken(account.token);
+                        return result;
                     }
-                    AccountManager.releaseToken(account.token);
+                } catch (err: any) {
+                    lastError = err;
+                    if (isPooled && account) {
+                        const statusCode = err.errcode || err.status || err.statusCode || err.response?.status;
+                        let policyAction = 'error';
+                        if (statusCode) {
+                            policyAction = AccountManager.applyResponsePolicy(account.id, statusCode);
+                        }
+                        AccountManager.releaseToken(account.token);
+
+                        if (policyAction === 'retry' && attempt < maxRetries) {
+                            // TypeScript doesn't know logger here natively without import, but logger is imported at top
+                            const l = require('@/lib/logger.ts').default;
+                            l.warn(`[API] 策略触发重图试 (第 ${attempt}/${maxRetries} 次): ${statusCode}.`);
+                            continue;
+                        }
+                    }
+                    throw err;
                 }
-                throw err;
             }
+            throw lastError;
         }
     }
 };

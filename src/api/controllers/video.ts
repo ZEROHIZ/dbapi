@@ -349,13 +349,14 @@ async function pollForVideoResult(convId: string, context: AccountContext, timeo
  * @param account 账号信息
  */
 async function createVideoCompletion(
-    videoParams: { prompt: string; ratio: string; model?: string; image?: string },
+    videoParams: { model: string; prompt: string; ratio: string; image?: string },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
-    retryCount = 0
+    retryCount = 0,
+    autoDelete = false
 ) {
     return (async () => {
-        const { prompt, ratio, model, image } = videoParams;
+        const { prompt, ratio, image } = videoParams;
         logger.info(`收到视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
         const context = normalizeAccount(account);
 
@@ -382,7 +383,7 @@ async function createVideoCompletion(
         const contentJson = JSON.stringify({
             text: prompt,
             ratio: ratio || "16:9", // 默认 16:9
-            // model 字段视情况添加，如果服务端支持
+            model: AccountManager.getMappedModel((account as any).id, videoParams.model || "doubao-video")
         });
 
         const videoMessage = [
@@ -462,27 +463,15 @@ async function createVideoCompletion(
              initialAnswer.choices[0].message.content += "\n\n(获取视频结果超时，请稍后在历史记录中查看)";
         }
 
-        /* 调试阶段暂时不删除会话
-        removeConversation(convId, context).catch(
-            (err) => console.error('移除视频生成会话失败：', err)
-        );
-        */
+        if (autoDelete) {
+            removeConversation(convId, context).catch(
+                (err) => console.error('移除视频生成会话失败：', err)
+            );
+        }
 
         return initialAnswer;
     })().catch((err) => {
-        if (retryCount < MAX_RETRY_COUNT) {
-            logger.error(`视频生成流响应错误: ${err.stack}`);
-            logger.warn(`${RETRY_DELAY / 1000}秒后重试...`);
-            return (async () => {
-                await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-                return createVideoCompletion(
-                    videoParams,
-                    account,
-                    assistantId,
-                    retryCount + 1
-                );
-            })();
-        }
+        logger.error(`视频生成流响应错误: ${err.stack || String(err)}`);
         throw err;
     });
 }
@@ -493,13 +482,14 @@ async function createVideoCompletion(
  * @param account 账号信息
  */
 async function createVideoCompletionStream(
-    videoParams: { prompt: string; ratio: string; model?: string; image?: string },
+    videoParams: { model: string; prompt: string; ratio: string; image?: string },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
-    retryCount = 0
+    retryCount = 0,
+    autoDelete = false
 ) {
     return (async () => {
-        const { prompt, ratio, model, image } = videoParams;
+        const { prompt, ratio, image } = videoParams;
         logger.info(`收到流式视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
         const context = normalizeAccount(account);
 
@@ -525,6 +515,7 @@ async function createVideoCompletionStream(
         const contentJson = JSON.stringify({
             text: prompt,
             ratio: ratio || "16:9",
+            model: AccountManager.getMappedModel((account as any).id, videoParams.model || "doubao-video")
         });
 
         const videoMessage = [
@@ -599,26 +590,14 @@ async function createVideoCompletionStream(
                  AccountManager.updateAccountUsage(accountId, 'video', 0, 0);
                  TokenCounter.recordUsage(accountId, 0, 0);
             }
-            /* 调试阶段暂时不删除会话
-            removeConversation(convId, context).catch(
-                (err) => console.error(err)
-            );
-            */
-        }, context, account);
-    })().catch((err) => {
-        if (retryCount < MAX_RETRY_COUNT) {
-            logger.error(`流式视频生成响应错误: ${err.stack}`);
-            logger.warn(`${RETRY_DELAY / 1000}秒后重试...`);
-            return (async () => {
-                await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-                return createVideoCompletionStream(
-                    videoParams,
-                    account,
-                    assistantId,
-                    retryCount + 1
+            if (autoDelete) {
+                removeConversation(convId, context).catch(
+                    (err) => console.error(err)
                 );
-            })();
-        }
+            }
+        }, context, account, autoDelete);
+    })().catch((err) => {
+        logger.error(`流式视频生成响应错误: ${err.stack || String(err)}`);
         throw err;
     });
 }
@@ -796,7 +775,7 @@ async function receiveStream(stream: any): Promise<any> {
 /**
  * 创建转换流 (SSE)
  */
-function createTransStream(stream: any, endCallback?: Function, context?: AccountContext, account?: any) {
+function createTransStream(stream: any, endCallback?: Function, context?: any, account?: any, autoDelete = false) {
     let convId = "";
     let usageSent = false;
     let temp = Buffer.from('');

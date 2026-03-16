@@ -6,6 +6,7 @@ import cron from "cron";
 import axios from "axios";
 import { EventEmitter } from "events";
 import ResponsePolicyManager, { PolicyAction } from "./response-policy.ts";
+import ModelManager from "./model-manager.ts";
 
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -42,6 +43,11 @@ export interface Account {
   deviceId?: string;
   webId?: string;
   userId?: string;
+  
+  // New: 渠道支持的模型列表 (如 "doubao,doubao-pro")
+  models?: string; 
+  // New: 模型重定向映射 JSON (如 {"doubao-image": "Seedream 4.5"})
+  modelMapping?: string; 
 
   // 统计与限制
   limitChat: number;  // -1 表示不限
@@ -96,7 +102,8 @@ class AccountManager extends EventEmitter {
   // 队列需要记录请求类型
   private queue: Array<{ 
       type: RequestType;
-      resolve: (token: string) => void; 
+      modelId?: string;
+      resolve: (account: Account) => void; 
       reject: (err: any) => void 
   }> = [];
 
@@ -148,7 +155,9 @@ class AccountManager extends EventEmitter {
             totalPromptTokens: s.totalPromptTokens || 0,
             totalCompletionTokens: s.totalCompletionTokens || 0,
             cooldownUntil: s.cooldownUntil || 0,
-            cooldownReason: s.cooldownReason || "",
+            userId: s.userId || "",
+            models: s.models || "",
+            modelMapping: s.modelMapping || "",
             // 兼容逻辑：如果没有新字段，使用默认值
             limitChat: s.limitChat !== undefined ? s.limitChat : -1,
             limitImage: s.limitImage !== undefined ? s.limitImage : 60,
@@ -171,6 +180,7 @@ class AccountManager extends EventEmitter {
         id: a.id, token: a.token, name: a.name, enabled: a.enabled,
         type: a.type, weight: a.weight,
         baseUrl: a.baseUrl, apiKey: a.apiKey, capability: a.capability, modelName: a.modelName,
+        models: a.models, modelMapping: a.modelMapping,
         deviceId: a.deviceId, webId: a.webId, userId: a.userId,
         limitChat: a.limitChat, limitImage: a.limitImage, limitVideo: a.limitVideo,
         usageChat: a.usageChat, usageImage: a.usageImage, usageVideo: a.usageVideo,
@@ -218,7 +228,7 @@ class AccountManager extends EventEmitter {
           }, 0);
   }
 
-  private tryGetAvailableAccount(type: RequestType): Account | null {
+  private tryGetAvailableAccount(type: RequestType, modelId?: string): Account | null {
     const total = this.accounts.length;
     if (total === 0) return null;
 
@@ -236,6 +246,15 @@ class AccountManager extends EventEmitter {
 
         // 检查运行时状态 (BUSY/COOLDOWN)
         if (a.status !== AccountStatus.IDLE) continue;
+
+        // --- 新模型路由逻辑 ---
+        if (modelId) {
+            // 1. 如果账号配置了 specific models，则必须包含该模型
+            if (a.models && a.models.trim().length > 0) {
+                const supportedModels = a.models.split(',').map(m => m.trim());
+                if (!supportedModels.includes(modelId)) continue;
+            }
+        }
 
         // 检查第三方渠道功能匹配
         if (a.type === 'openai') {
@@ -255,7 +274,7 @@ class AccountManager extends EventEmitter {
   }
 
 
-  public acquireToken(type: RequestType = 'chat'): Promise<Account> {
+  public acquireToken(type: RequestType = 'chat', modelId?: string): Promise<Account> {
     return new Promise((resolve, reject) => {
       const remaining = this.getTotalRemainingUsage(type);
       
@@ -265,14 +284,14 @@ class AccountManager extends EventEmitter {
           return reject(new Error(`系统今日 [${type}] 额度已耗尽。`));
       }
 
-      const account = this.tryGetAvailableAccount(type);
+      const account = this.tryGetAvailableAccount(type, modelId);
       if (account) {
         this.lockAccount(account, type);
         resolve(account);
       } else {
         // 进入队列
-        this.queue.push({ type, resolve: (tokenOrAccount: any) => resolve(tokenOrAccount), reject });
-        logger.info(`[AccountManager] 暂无空闲账号，请求 [${type}] 进入队列。当前排队: ${this.queue.length}`);
+        this.queue.push({ type, modelId, resolve: (account: Account) => resolve(account), reject });
+        logger.info(`[AccountManager] 暂无空闲账号，请求 [${type}:${modelId || 'any'}] 进入队列。当前排队: ${this.queue.length}`);
       }
     });
   }
@@ -310,7 +329,7 @@ class AccountManager extends EventEmitter {
     // 遍历队列，寻找第一个能被满足的请求
     for (let i = 0; i < this.queue.length; i++) {
         const req = this.queue[i];
-        const account = this.tryGetAvailableAccount(req.type);
+        const account = this.tryGetAvailableAccount(req.type, req.modelId);
         
         if (account) {
             this.queue.splice(i, 1);
@@ -373,6 +392,8 @@ class AccountManager extends EventEmitter {
       apiKey: extra.apiKey || "",
       capability: extra.capability || undefined,
       modelName: extra.modelName || "",
+      models: extra.models || "",
+      modelMapping: extra.modelMapping || "",
       deviceId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
       webId: `7${util.generateRandomString({length: 18, charset: "numeric"})}`,
       userId: util.uuid(false),
@@ -477,12 +498,39 @@ class AccountManager extends EventEmitter {
    * 获取所有可用的模型列表
    */
   public getAvailableModels() {
-    const models = [
-      { id: "doubao", object: "model", owned_by: "doubao-free-api" },
-      { id: "doubao-video", object: "model", owned_by: "doubao-free-api" },
-      { id: "doubao-image", object: "model", owned_by: "doubao-free-api" }
-    ];
-    return models;
+    return ModelManager.getEnabledModels();
+  }
+
+  /**
+   * 获取账号对特定请求模型的映射（重定向）
+   * @param accountId 账号ID
+   * @param modelId 请求的模型ID
+   * @returns 映射后的后端模型名称
+   */
+  public getMappedModel(accountId: string, modelId: string): string {
+    const account = this.accounts.find(a => a.id === accountId);
+    if (!account) return modelId;
+
+    // 1. 优先检查账号级别的映射
+    if (account.modelMapping) {
+        try {
+            const mapping = JSON.parse(account.modelMapping);
+            if (mapping[modelId]) return mapping[modelId];
+        } catch (e) {
+            logger.error(`解析账号 [${account.name}] 的模型映射失败:`, e);
+        }
+    }
+
+    // 2. 其次检查全局模型默认映射
+    const globalConfig = ModelManager.getModelConfig(modelId);
+    if (globalConfig && globalConfig.backendModel) {
+        return globalConfig.backendModel;
+    }
+
+    // 3. 最后如果账号配置了默认模型名称且请求符合类型
+    if (account.modelName) return account.modelName;
+
+    return modelId;
   }
 
   /**

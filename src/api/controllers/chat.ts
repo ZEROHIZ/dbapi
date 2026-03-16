@@ -318,7 +318,9 @@ async function createCompletion(
     assistantId = DEFAULT_ASSISTANT_ID,
     refConvId = "",
     retryCount = 0,
-    tools?: any[]
+    tools?: any[],
+    autoDelete = true,
+    modelId = MODEL_NAME
 ) {
     return (async () => {
         logger.info(`收到 ${messages.length} 条消息`);
@@ -327,7 +329,7 @@ async function createCompletion(
         const refFileUrls = extractRefFileUrls(messages);
         const refs = refFileUrls.length
             ? await Promise.all(
-                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context))
+                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context.token))
             )
             : [];
 
@@ -374,7 +376,7 @@ async function createCompletion(
         }
 
         const streamStartTime = util.timestamp();
-        const answer = await receiveStream(response.data);
+        const answer = await receiveStream(response.data, modelId);
         logger.success(
             `Stream has completed transfer ${util.timestamp() - streamStartTime}ms`
         );
@@ -396,27 +398,15 @@ async function createCompletion(
             TokenCounter.recordUsage(account.id, promptTokens, completionTokens);
         }
 
-        removeConversation(answer.id, context).catch(
-            (err) => !refConvId && console.error('移除会话失败：', err)
-        );
+        if (autoDelete) {
+            removeConversation(answer.id, context).catch(
+                (err) => !refConvId && console.error('移除会话失败：', err)
+            );
+        }
 
         return answer;
     })().catch((err) => {
-        if (retryCount < MAX_RETRY_COUNT) {
-            logger.error(`Stream response error: ${err.stack}`);
-            logger.warn(`Try again after ${RETRY_DELAY / 1000}s...`);
-            return (async () => {
-                await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-                return createCompletion(
-                    messages,
-                    account,
-                    assistantId,
-                    refConvId,
-                    retryCount + 1,
-                    tools
-                );
-            })();
-        }
+        logger.error(`Response error: ${err.message || String(err)}`);
         throw err;
     });
 }
@@ -435,7 +425,9 @@ async function createCompletionStream(
     assistantId = DEFAULT_ASSISTANT_ID,
     refConvId = "",
     retryCount = 0,
-    tools?: any[]
+    tools?: any[],
+    autoDelete = true,
+    modelId = MODEL_NAME
 ) {
     return (async () => {
         logger.info(`收到 ${messages.length} 条消息（流式）`);
@@ -444,7 +436,7 @@ async function createCompletionStream(
         const refFileUrls = extractRefFileUrls(messages);
         const refs = refFileUrls.length
             ? await Promise.all(
-                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context))
+                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context.token))
             )
             : [];
 
@@ -521,23 +513,9 @@ async function createCompletionStream(
             removeConversation(convId, context).catch(
                 (err) => !refConvId && console.error(err)
             );
-        }, !!(tools && tools.length), account, promptText);
+        }, !!(tools && tools.length), account, promptText, autoDelete, modelId);
     })().catch((err) => {
-        if (retryCount < MAX_RETRY_COUNT) {
-            logger.error(`Stream response error: ${err.stack}`);
-            logger.warn(`Try again after ${RETRY_DELAY / 1000}s...`);
-            return (async () => {
-                await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-                return createCompletionStream(
-                    messages,
-                    account,
-                    assistantId,
-                    refConvId,
-                    retryCount + 1,
-                    tools
-                );
-            })();
-        }
+        logger.error(`Stream response error: ${err.message || String(err)}`);
         throw err;
     });
 }
@@ -1317,14 +1295,14 @@ function checkResult(result: AxiosResponse) {
  *
  * @param stream 消息流
  */
-async function receiveStream(stream: any): Promise<any> {
+async function receiveStream(stream: any, modelId?: string): Promise<any> {
     let temp = Buffer.from('');
     const images: Array<{ key?: string; preview?: string; ori?: string; thumb?: string }> = [];
     const emittedImageKeys = new Set<string>();
     return new Promise((resolve, reject) => {
         const data = {
             id: "",
-            model: MODEL_NAME,
+            model: modelId || MODEL_NAME,
             object: "chat.completion",
             choices: [
                 {
@@ -1457,7 +1435,16 @@ async function receiveStream(stream: any): Promise<any> {
  * @param stream 消息流
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function, hasTools = false, account?: any, promptText = "") {
+function createTransStream(
+    stream: any,
+    endCallback?: Function,
+    hasTools = false,
+    account?: any,
+    promptText = "",
+    autoDelete = true,
+    modelId?: string
+) {
+    const finalModelName = modelId || MODEL_NAME;
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
@@ -1581,7 +1568,7 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
         // 常规结束，带上 usage
         transStream.write(`data: ${JSON.stringify({
             id: convId,
-            model: MODEL_NAME,
+            model: finalModelName,
             object: "chat.completion.chunk",
             choices: [{
                 index: 0,
@@ -1669,7 +1656,7 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
                         const md = `![生成图片${idx}](${url})\n原图: ${ori}\n`;
                         transStream.write(`data: ${JSON.stringify({
                             id: convId,
-                            model: MODEL_NAME,
+                            model: finalModelName,
                             object: "chat.completion.chunk",
                             choices: [
                                 {

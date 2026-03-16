@@ -21,6 +21,7 @@ const DEFAULT_POLICIES: ResponsePolicy[] = [
   { statusCode: 500, action: "retry",        description: "服务器错误，换号重试", applyTo: "all" },
   { statusCode: 502, action: "retry",        description: "网关错误，换号重试", applyTo: "all" },
   { statusCode: 503, action: "retry",        description: "服务不可用，换号重试", applyTo: "all" },
+  { statusCode: -2001, action: "retry",      description: "API请求失败，换号重试", applyTo: "doubao" },
 ];
 
 class ResponsePolicyManager {
@@ -63,7 +64,20 @@ class ResponsePolicyManager {
   }
 
   public getPolicyForStatus(statusCode: number, type: "doubao" | "openai"): ResponsePolicy | null {
-    return this.policies.find(p => p.statusCode === statusCode && (p.applyTo === "all" || p.applyTo === type)) || null;
+    const policy = this.policies.find(p => p.statusCode === statusCode && (p.applyTo === "all" || p.applyTo === type));
+    if (policy) return policy;
+
+    // 默认回退逻辑：对于未定义的 5xx 错误或 负数业务错误码，默认尝试换号重试一次
+    if (statusCode >= 500 || statusCode < 0) {
+      return {
+        statusCode,
+        action: "retry",
+        description: `未定义错误 ${statusCode}，启用默认重试策略`,
+        applyTo: "all"
+      };
+    }
+
+    return null;
   }
 }
 

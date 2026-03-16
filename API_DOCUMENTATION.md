@@ -36,7 +36,8 @@ Authorization: Bearer pooled
             "content": "你好，请自我介绍一下"
         }
     ],
-    "stream": false
+    "stream": false,
+    "auto_delete": true
 }
 ```
 
@@ -63,7 +64,9 @@ Authorization: Bearer pooled
       ]
     }
   ],
-  "stream": false
+  "stream": false,
+  "auto_delete": false
+
 }
 ```
 
@@ -87,6 +90,40 @@ Authorization: Bearer pooled
 }
 ```
 
+### 1.3 工具调用 (Tool Calling)
+
+支持 OpenAI 标准的 `tools` 和 `tool_choice` 参数。
+
+**请求示例**:
+```json
+{
+    "model": "doubao",
+    "messages": [
+        {
+            "role": "user",
+            "content": "帮我查一下北京的天气"
+        }
+    ],
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "获取指定城市的天气状况",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": { "type": "string", "description": "城市名称" }
+                    },
+                    "required": ["location"]
+                }
+            }
+        }
+    ],
+    "tool_choice": "auto"
+}
+```
+
 ---
 
 ## 2. 图片生成 (Image Generations)
@@ -104,7 +141,8 @@ Authorization: Bearer pooled
     "prompt": "一只可爱的赛博朋克风格猫咪",
     "ratio": "1:1", // 比例: 1:1, 16:9, 9:16 等
     "style": "通用", // 风格: 通用, 卡通, 3D 等
-    "stream": false
+    "stream": false,
+    "auto_delete": true
 }
 ```
 
@@ -159,7 +197,8 @@ Authorization: Bearer pooled
 {
     "prompt": "海浪拍打沙滩，夕阳西下，镜头缓慢推进",
     "ratio": "16:9", // 默认 16:9
-    "stream": false
+    "stream": false,
+    "auto_delete": false
 }
 ```
 
@@ -201,3 +240,90 @@ Authorization: Bearer pooled
     "created": 1763985200
 }
 ```
+
+---
+
+## 4. 获取可用模型 (List Models)
+
+获取当前系统中所有可用的模型列表，包括文本、视频以及图片生成的具体版本。
+
+**接口地址**: `GET /v1/models`
+
+**响应示例**:
+```json
+{
+  "data": [
+    { "id": "doubao", "object": "model", "owned_by": "doubao-free-api" },
+    { "id": "doubao-video", "object": "model", "owned_by": "doubao-free-api" },
+    { "id": "doubao-image", "object": "model", "owned_by": "doubao-free-api" },
+    { "id": "Seedream 4.0", "object": "model", "owned_by": "doubao-free-api" },
+    { "id": "Seedream 4.2", "object": "model", "owned_by": "doubao-free-api" },
+    { "id": "Seedream 4.5", "object": "model", "owned_by": "doubao-free-api" }
+  ]
+}
+```
+
+**模型选择建议**:
+- **图片生成**: 默认使用 `doubao-image` (即 Seedream 4.0)。若需使用新版本，请求时将 `model` 设置为 `Seedream 4.2` 或 `Seedream 4.5` 即可。
+- **视频生成**: 默认使用 `doubao-video`。
+
+---
+
+## 5. Session 状态检查 (Token Check)
+
+检查指定的 SessionID (Token) 是否仍然存活（有效）。
+
+**接口地址**: `POST /token/check`
+
+**请求参数**:
+- `token`: 需要检查的 SessionID。
+
+**请求示例**:
+```json
+{
+    "token": "your-session-id-here"
+}
+```
+
+**响应示例**:
+```json
+{
+    "live": true
+}
+```
+
+---
+
+## 6. 工具与管理 (Utilities)
+
+### 6.1 健康检查 (Ping)
+- **地址**: `GET /ping`
+- **响应**: `"pong"`
+
+### 6.2 版本查询
+- **地址**: `GET /admin/version`
+- **响应**: `{"version": "1.0.0"}`
+
+---
+
+## 7. 错误处理 (Error Handling)
+
+当接口返回非 200 状态码时，会返回统一的错误 JSON 格式。
+
+**组件结构**:
+- `code`: 系统内部错误码或 API 业务错误码（如 `-2001`）。
+- `message`: 详细的错误描述。
+- `statusCode`: 建议的 HTTP 状态码。
+
+**响应示例**:
+```json
+{
+    "code": -2001,
+    "message": "[请求doubao失败]: 内容安全检测未通过",
+    "data": null,
+    "statusCode": 500
+}
+```
+
+> [!TIP]
+> 如果您在使用账号池 (`pooled`) 时遇到错误，系统会自动尝试更换账号重试（最多 3 次），直到返回成功或达到重试上限。

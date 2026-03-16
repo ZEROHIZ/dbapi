@@ -26,7 +26,6 @@ export default {
 
             // 如果 Authorization 为 Bearer pooled 或者没有提供有效的 sessionid，则使用账号池
             if (authHeader.includes("pooled") || authHeader.length < 20) {
-                account = await AccountManager.acquireToken('chat');
                 isPooled = true;
             } else {
                 // refresh_token切分
@@ -35,48 +34,74 @@ export default {
                 account = _.sample(tokens) || "";
             }
 
-            const {model, conversation_id: convId, messages, stream, tools} = request.body;
-            const assistantId = /^[a-z0-9]{24,}$/.test(model) ? model : undefined
-
-            try {
-                if (isPooled && account.type === 'openai') {
-                    return await openaiProxy.proxyChat(request.body, account);
+            const {model, conversation_id: convId, messages, stream, tools, auto_delete} = request.body;
+            const autoDelete = _.isBoolean(auto_delete) ? auto_delete : true;
+            let assistantId = model && /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
+            if (!assistantId && account) {
+                const mapped = AccountManager.getMappedModel(account.id, model);
+                if (mapped && /^[a-z0-9]{24,}$/.test(mapped)) {
+                    assistantId = mapped;
                 }
-
-                if (stream) {
-
-                    const s = await chat.createCompletionStream(messages, account, assistantId, convId, 0, tools);
-                    
-                    // 如果是池化账号，在流结束时释放
-                    if (isPooled) {
-                        const token = account.token;
-                        s.on('end', () => AccountManager.releaseToken(token));
-                        s.on('error', () => AccountManager.releaseToken(token));
-                    }
-
-                    return new Response(s, {
-                        type: "text/event-stream",
-                        headers: {
-                            "Cache-Control": "no-cache, no-transform",
-                            "Connection": "keep-alive",
-                            "X-Accel-Buffering": "no"
-                        }
-                    });
-                } else {
-                    const res = await chat.createCompletion(messages, account, assistantId, convId, 0, tools);
-                    if (isPooled) AccountManager.releaseToken(account.token);
-                    return res;
-                }
-            } catch (err: any) {
-                if (isPooled && account) {
-                    const statusCode = err.status || err.statusCode || err.response?.status;
-                    if (statusCode) {
-                        AccountManager.applyResponsePolicy(account.id, statusCode);
-                    }
-                    AccountManager.releaseToken(account.token);
-                }
-                throw err;
             }
+
+            const maxRetries = isPooled ? 3 : 1;
+            let attempt = 0;
+            let lastError: any;
+
+            while (attempt < maxRetries) {
+                attempt++;
+                try {
+                    if (isPooled) {
+                        // Re-acquire token for each attempt if pooled
+                        account = await AccountManager.acquireToken('chat', model);
+                    }
+                    
+                    if (isPooled && account.type === 'openai') {
+                        return await openaiProxy.proxyChat(request.body, account);
+                    }
+
+                    if (stream) {
+                        const s = await chat.createCompletionStream(messages, account, assistantId, convId, 0, tools, autoDelete, model);
+                        
+                        // 如果是池化账号，在流结束时释放
+                        if (isPooled) {
+                            const token = account.token;
+                            s.on('end', () => AccountManager.releaseToken(token));
+                            s.on('error', () => AccountManager.releaseToken(token));
+                        }
+
+                        return new Response(s, {
+                            type: "text/event-stream",
+                            headers: {
+                                "Cache-Control": "no-cache, no-transform",
+                                "Connection": "keep-alive",
+                                "X-Accel-Buffering": "no"
+                            }
+                        });
+                    } else {
+                        const res = await chat.createCompletion(messages, account, assistantId, convId, 0, tools, autoDelete, model);
+                        if (isPooled) AccountManager.releaseToken(account.token);
+                        return res;
+                    }
+                } catch (err: any) {
+                    lastError = err;
+                    if (isPooled && account) {
+                        const statusCode = err.errcode || err.status || err.statusCode || err.response?.status;
+                        let policyAction = 'error';
+                        if (statusCode) {
+                            policyAction = AccountManager.applyResponsePolicy(account.id, statusCode);
+                        }
+                        AccountManager.releaseToken(account.token);
+
+                        if (policyAction === 'retry' && attempt < maxRetries) {
+                            logger.warn(`[API] 策略触发重试 (第 ${attempt}/${maxRetries} 次): ${statusCode}.`);
+                            continue;
+                        }
+                    }
+                    throw err;
+                }
+            }
+            throw lastError;
         }
 
     }

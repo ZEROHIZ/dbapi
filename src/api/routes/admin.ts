@@ -5,6 +5,7 @@ import Response from "@/lib/response/Response.ts";
 import path from "path";
 import environment from "@/lib/environment.ts";
 import ResponsePolicyManager from "@/lib/response-policy.ts";
+import ModelManager from "@/lib/model-manager.ts";
 
 // 读取版本号
 const getVersion = async () => {
@@ -75,6 +76,10 @@ export default {
         '/admin/policies': withAuth(async () => {
             const policies = ResponsePolicyManager.getPolicies();
             return new SuccessfulBody(policies);
+        }),
+        '/admin/models': withAuth(async () => {
+            const models = ModelManager.getAllModels();
+            return new SuccessfulBody(models);
         })
     },
     post: {
@@ -124,6 +129,14 @@ export default {
             }
             await ResponsePolicyManager.savePolicies(policies);
             return new SuccessfulBody({ message: "Policies saved" });
+        }),
+        '/admin/models': withAuth(async (req: any) => {
+            const model = req.body;
+            if (!model || !model.id) {
+                return new Response({ code: 400, msg: "Model ID is required" }, { statusCode: 400 });
+            }
+            ModelManager.addOrUpdateModel(model);
+            return new SuccessfulBody({ message: "Model saved" });
         })
     },
     delete: {
@@ -131,6 +144,11 @@ export default {
             const { id } = req.params;
             await AccountManager.deleteAccount(id);
             return new SuccessfulBody({ message: "Account deleted" });
+        }),
+        '/admin/models/:id': withAuth(async (req: any) => {
+            const { id } = req.params;
+            ModelManager.deleteModel(id);
+            return new SuccessfulBody({ message: "Model deleted" });
         })
     }
 };
