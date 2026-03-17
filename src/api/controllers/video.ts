@@ -222,11 +222,13 @@ async function getVideoPlayInfo(vid: string, context: AccountContext) {
  * @param context 账号上下文
  * @param timeoutMs 超时时间
  */
-async function pollForVideoResult(convId: string, context: AccountContext, timeoutMs: number = 600000): Promise<any[]> {
+async function pollForVideoResult(convId: string, context: AccountContext, timeoutMs: number = 180000): Promise<any[]> {
+    const defaultTimeout = AccountManager.getSettings().videoTimeout || 180000;
+    const finalTimeout = timeoutMs > 0 ? timeoutMs : defaultTimeout;
     const startTime = Date.now();
     let retryCount = 0;
 
-    while (Date.now() - startTime < timeoutMs) {
+    while (Date.now() - startTime < finalTimeout) {
         try {
             await new Promise(resolve => setTimeout(resolve, 5000)); // 每5秒轮询一次
 
@@ -349,7 +351,7 @@ async function pollForVideoResult(convId: string, context: AccountContext, timeo
  * @param account 账号信息
  */
 async function createVideoCompletion(
-    videoParams: { model: string; prompt: string; ratio: string; image?: string; taskId?: string; polling_timeout?: number },
+    videoParams: { model: string; prompt: string; ratio: string; image?: string },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0,
@@ -438,84 +440,41 @@ async function createVideoCompletion(
         const initialAnswer = await receiveStream(response.data);
         const convId = initialAnswer.id;
         
-        if (!convId) {
-            throw new APIException(EX.API_REQUEST_FAILED, "未能从流响应中提取到有效会话ID");
+        logger.info(`视频生成会话创建成功 ID=${convId}，开始轮询结果...`);
+
+        // 2. 轮询获取真实视频地址
+        const settings = AccountManager.getSettings();
+        const videos = await pollForVideoResult(convId, context, settings.videoTimeout);
+        
+        // 记录用量
+        const accountId = (account as any).id;
+        if (accountId) {
+             AccountManager.updateAccountUsage(accountId, 'video', 0, 0);
+             TokenCounter.recordUsage(accountId, 0, 0);
+        }
+        
+        // 3. 更新返回结果
+        if (videos.length > 0) {
+             const md = videos.map((v, i) => {
+                return `![视频封面${i + 1}](${v.cover})
+视频链接: ${v.url}`;
+            }).join("\n\n");
+            // 覆盖之前的“生成中”提示
+            initialAnswer.choices[0].message.content = md;
+            initialAnswer.choices[0].message.videos = videos;
+        } else {
+             initialAnswer.choices[0].message.content += "\n\n(获取视频结果超时，请稍后在历史记录中查看)";
         }
 
-        logger.info(`视频生成会话创建成功 ID=${convId}，开启异步任务处理...`);
+        if (autoDelete) {
+            removeConversation(convId, context).catch(
+                (err) => console.error('移除视频生成会话失败：', err)
+            );
+        }
 
-        // 使用传入的 taskId (如果有)
-        const taskId = (videoParams as any).taskId;
-
-        // --- 异步后台轮询逻辑 ---
-        (async () => {
-            try {
-                const globalSettings = AccountManager.getSettings();
-                const systemTimeoutMs = (globalSettings.videoPollingTimeout || 600) * 1000;
-                const pollingTimeoutMs = Number(videoParams.polling_timeout) || systemTimeoutMs;
-
-                const videos = await pollForVideoResult(convId, context, pollingTimeoutMs);
-                
-                if (videos.length > 0) {
-                    const md = videos.map((v, i) => {
-                        return `![视频封面${i + 1}](${v.cover})\n视频链接: ${v.url}`;
-                    }).join("\n\n");
-                    
-                    if (taskId) {
-                        const VideoTaskManager = require('@/lib/video-task-manager.ts').default;
-                        VideoTaskManager.updateTask(taskId, {
-                            status: 'succeeded',
-                            video: { url: videos[0].url }
-                        });
-                    }
-                    logger.success(`[Video-Background] 任务 ${taskId || convId} 生成成功`);
-                } else {
-                    if (taskId) {
-                        const VideoTaskManager = require('@/lib/video-task-manager.ts').default;
-                        VideoTaskManager.updateTask(taskId, {
-                            status: 'failed',
-                            error: { code: 'timeout', message: '轮询视频结果超时' }
-                        });
-                    }
-                    logger.warn(`[Video-Background] 任务 ${taskId || convId} 轮询超时`);
-                }
-            } catch (err) {
-                logger.error(`[Video-Background] 任务 ${taskId || convId} 处理出错: ${err.message}`);
-                if (taskId) {
-                    const VideoTaskManager = require('@/lib/video-task-manager.ts').default;
-                    VideoTaskManager.updateTask(taskId, {
-                        status: 'failed',
-                        error: { code: 'internal_error', message: err.message }
-                    });
-                }
-            } finally {
-                // 记录用量
-                const accountId = (account as any).id;
-                if (accountId) {
-                    AccountManager.updateAccountUsage(accountId, 'video', 0, 0);
-                    TokenCounter.recordUsage(accountId, 0, 0);
-                }
-
-                if (autoDelete) {
-                    removeConversation(convId, context).catch(
-                        (err) => logger.error('移除视频生成会话失败：', err)
-                    );
-                }
-                
-                // 如果是池化账号，确保释放 Token
-                if (account && account.token && (account as any).isPooled) {
-                    AccountManager.releaseToken(account.token);
-                }
-            }
-        })();
-
-        // 立即返回携带任务ID的响应给路由层
-        return {
-            taskId,
-            convId
-        };
+        return initialAnswer;
     })().catch((err) => {
-        logger.error(`视频生成启动失败: ${err.stack || String(err)}`);
+        logger.error(`视频生成流响应错误: ${err.stack || String(err)}`);
         throw err;
     });
 }
@@ -526,7 +485,7 @@ async function createVideoCompletion(
  * @param account 账号信息
  */
 async function createVideoCompletionStream(
-    videoParams: { model: string; prompt: string; ratio: string; image?: string; taskId?: string; polling_timeout?: number },
+    videoParams: { model: string; prompt: string; ratio: string; image?: string },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0,

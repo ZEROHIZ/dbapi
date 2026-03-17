@@ -91,7 +91,7 @@ export interface Settings {
   cooldownTime: number; // 毫秒
   defaultModel: string;
   enableHealthCheck?: boolean; // 新增：是否开启全局健康检查
-  videoPollingTimeout?: number; // 新增：视频生成后台轮询超时（秒）
+  videoTimeout?: number; // 毫秒
 }
 
 export type RequestType = "chat" | "image" | "video";
@@ -102,7 +102,7 @@ class AccountManager extends EventEmitter {
   private settings: Settings = {
     cooldownTime: 10000,
     defaultModel: "doubao-lite-4k",
-    videoPollingTimeout: 600
+    videoTimeout: 180000
   };
 
   
@@ -234,7 +234,12 @@ class AccountManager extends EventEmitter {
   private async loadSettings() {
     try {
       if (await fs.pathExists(SETTINGS_FILE)) {
-        this.settings = await fs.readJson(SETTINGS_FILE);
+        const loaded = await fs.readJson(SETTINGS_FILE);
+        // 兼容旧的或由于误解产生的 videoPollingTimeout 字段
+        if (loaded.videoPollingTimeout !== undefined && loaded.videoTimeout === undefined) {
+             loaded.videoTimeout = loaded.videoPollingTimeout;
+        }
+        this.settings = { ...this.settings, ...loaded };
       }
     } catch (e) {
       logger.error("加载设置失败:", e);

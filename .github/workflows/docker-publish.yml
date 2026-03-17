@@ -3,8 +3,7 @@ name: Build and Publish Docker Image
 on:
   push:
     branches:
-      - main
-      - '0.1.*'
+      - main # 当代码推送到 main 分支时触发
     tags:
       - 'v*' # 当推送以 v 开头的标签（如 v1.0.0）时触发
   workflow_dispatch: # 允许手动触发

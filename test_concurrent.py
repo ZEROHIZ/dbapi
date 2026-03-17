@@ -1,10 +1,10 @@
 import requests
 
 # 你的 NewAPI 地址和 Key
-NEWAPI_URL = "http://192.168.110.30:5566/v1/images/generations"
-# NEWAPI_URL = "http://192.168.110.30:7000/v1/video/generations"
-API_KEY = "sk-VdJ4DV8srDJVKYzbC1eWuokjohrWRfAqu5IQG29jptOoANUj"
-# API_KEY ="pooled"
+# NEWAPI_URL = "http://192.168.110.30:5566/v1/images/generations"
+NEWAPI_URL = "http://127.0.0.1:5566/v1/video/generations"
+# API_KEY = "sk-VdJ4DV8srDJVKYzbC1eWuokjohrWRfAqu5IQG29jptOoANUj"
+API_KEY ="pooled"
 headers = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
@@ -23,7 +23,7 @@ headers = {
 payload = {
         "model": "doubao-video",
         "prompt":"猫咪说话人类跪下，然后狗跳起来了",
-        "size": "16:9",
+        "ratio": "16:9",
         "stream": False
     }
 

@@ -187,69 +187,40 @@ Authorization: Bearer pooled
 
 ## 3. 视频生成 (Video Generations)
 
-支持文生视频和图生视频。该接口采用 **异步任务模式**，请求后会立即返回任务 ID，由于视频生成耗时较长（通常 2-10 分钟），您需要根据任务 ID 轮询状态。
-
-### 3.1 创建任务 (Initiate Task)
+支持文生视频和图生视频。
 
 **接口地址**: `POST /v1/video/generations`
 
-**参数说明**:
-- `prompt`: 视频描述词。
-- `image`: (可选) 首帧图片 URL 或 Base64。
-- `ratio`: (可选) 视频比例，默认 `16:9`。
-- `polling_timeout`: (可选) 后台轮询超时时间(秒)，默认使用系统全局设置。
+### 3.1 文生视频 (Text to Video)
 
 **请求示例**:
 ```json
-{   "model": "doubao-video",
+{
     "prompt": "海浪拍打沙滩，夕阳西下，镜头缓慢推进",
-    "ratio": "16:9"
+    "ratio": "16:9", // 默认 16:9
+    "stream": false,
+    "auto_delete": false
 }
 ```
 
-**响应示例 (立即返回)**:
+### 3.2 图生视频 (Image to Video)
+
+**请求示例**:
 ```json
 {
-    "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
+    "prompt": "让画面动起来，镜头拉远",
+    "image": "https://example.com/start_frame.jpg", // 首帧图片 (URL 或 Base64)
+    "ratio": "16:9",
+    "stream": false
+}
+```
+
+**响应示例**:
+```json
+{
+    "id": "73568724412460123",
     "model": "doubao-video",
     "object": "chat.completion",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "视频任务已创建，正在后台生成中。您可以通过任务 ID 查询进度。",
-                "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9"
-            },
-            "finish_reason": "pending"
-        }
-    ],
-    "created": 1733300587,
-    "status": "pending"
-}
-```
-
-### 3.2 轮询任务状态 (Poll Task Status)
-
-**接口地址**: `GET /v1/video/generations/:id`
-
-**响应示例 (生成中)**:
-```json
-{
-    "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
-    "status": "processing",
-    "object": "video.generation"
-}
-```
-
-**响应示例 (成功)**:
-```json
-{
-    "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
-    "model": "doubao-video",
-    "object": "video.generation",
-    "status": "succeeded",
-    "created": 1733300587,
     "choices": [
         {
             "index": 0,
@@ -258,15 +229,16 @@ Authorization: Bearer pooled
                 "content": "![视频封面](https://cover-url.jpg)\n视频链接: https://video-url.mp4",
                 "videos": [
                     {
-                        "vid": "vtask-7b9b7bd0...",
+                        "vid": "v02834g1...",
                         "cover": "https://cover-url.jpg",
-                        "url": "https://video-url.mp4"
+                        "url": "https://video-url.mp4" // 无水印直链
                     }
                 ]
             },
             "finish_reason": "stop"
         }
-    ]
+    ],
+    "created": 1763985200
 }
 ```
 
