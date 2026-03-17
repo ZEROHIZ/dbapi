@@ -210,7 +210,7 @@ Authorization: Bearer pooled
 **响应示例 (立即返回)**:
 ```json
 {
-    "id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
+    "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
     "model": "doubao-video",
     "object": "chat.completion",
     "choices": [
@@ -236,7 +236,7 @@ Authorization: Bearer pooled
 **响应示例 (生成中)**:
 ```json
 {
-    "id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
+    "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
     "status": "processing",
     "object": "video.generation"
 }
@@ -245,7 +245,7 @@ Authorization: Bearer pooled
 **响应示例 (成功)**:
 ```json
 {
-    "id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
+    "task_id": "vtask-7b9b7bd021c411f18e1bb9525c54fdd9",
     "model": "doubao-video",
     "object": "video.generation",
     "status": "succeeded",

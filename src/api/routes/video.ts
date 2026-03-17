@@ -119,7 +119,8 @@ export default {
                 throw new APIException(EX.API_REQUEST_FAILED, '未找到指定的任务');
             }
 
-            return new Response(task);
+            const { id: _, ...publicTask } = task;
+            return new Response(publicTask);
         }
     }
 };
