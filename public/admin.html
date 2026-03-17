@@ -411,6 +411,14 @@
                             <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">默认模型</label>
                             <input v-model="settings.defaultModel" type="text" placeholder="doubao" class="input-field">
                         </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">视频生成后台轮询超时 (秒)</label>
+                            <div class="relative">
+                                <input v-model.number="settings.videoPollingTimeout" type="number" class="input-field">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase">s</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500">视频生成任务在后台轮询的最大时长，建议 600s 以上。</p>
+                        </div>
                         <div class="col-span-full pt-4 border-t border-slate-100 dark:border-slate-800">
                             <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl">
                                 <div>

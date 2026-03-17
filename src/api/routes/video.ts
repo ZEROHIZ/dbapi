@@ -7,6 +7,7 @@ import openaiProxy from '@/api/controllers/openai-proxy.ts';
 import AccountManager from '@/lib/account-manager.ts';
 import APIException from '@/lib/exceptions/APIException.ts';
 import FailureBody from '@/lib/response/FailureBody.ts';
+import EX from '@/api/consts/exceptions.ts';
 
 
 interface VideoCompletionRequestBody {
@@ -23,7 +24,7 @@ export default {
 
     post: {
         /**
-         * 视频生成接口
+         * 视频生成接口 (异步创建)
          * 路径：/v1/video/generations
          */
         '/generations': async (request: Request) => {
@@ -32,7 +33,6 @@ export default {
                 .validate('body.ratio', (v) => _.isUndefined(v) || _.isString(v))
                 .validate('body.model', (v) => _.isUndefined(v) || _.isString(v))
                 .validate('body.image', (v) => _.isUndefined(v) || _.isString(v))
-                .validate('body.stream', _.isBoolean)
                 .validate('headers.authorization', _.isString);
 
             const authHeader = request.headers.authorization || "";
@@ -53,87 +53,73 @@ export default {
                 prompt,
                 ratio,
                 model,
-                stream,
                 image,
-                auto_delete
-            } = request.body as VideoCompletionRequestBody;
+                auto_delete,
+                timeout
+            } = request.body as any;
             const autoDelete = _.isBoolean(auto_delete) ? auto_delete : false;
 
-            let assistantId = model && /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
-            if (!assistantId && account) {
-                const mapped = AccountManager.getMappedModel(account.id, model);
-                if (mapped && /^[a-z0-9]{24,}$/.test(mapped)) {
-                    assistantId = mapped;
-                }
-            }
+            // 读取超时设置 (秒转毫秒)
+            const pollingTimeout = (Number(timeout) || Number(request.headers['x-polling-timeout']) || 600) * 1000;
 
-            const videoParams = {
-                prompt,
-                ratio: ratio || "16:9",
-                model,
-                image
-            };
+            const VideoTaskManager = require('@/lib/video-task-manager.ts').default;
+            const task = VideoTaskManager.addTask(model || "doubao-video");
 
-            let maxRetries = isPooled ? 3 : 1;
-            let attempt = 0;
-            let lastError: any;
-
-            while (attempt < maxRetries) {
-                attempt++;
+            // 后台处理逻辑
+            (async () => {
                 try {
                     if (isPooled) {
                         account = await AccountManager.acquireToken('video', model);
-                    }
-                    if (isPooled && account.type === 'openai') {
-                        const result = await openaiProxy.proxyVideo(request.body, account);
-                        if (isPooled) AccountManager.releaseToken(account.token);
-                        return result;
+                        account.isPooled = true;
                     }
 
-                    if (stream) {
+                    const videoParams = {
+                        prompt,
+                        ratio: ratio || "16:9",
+                        model,
+                        image,
+                        taskId: task.id,
+                        polling_timeout: pollingTimeout
+                    };
 
-                        const s = await video.createVideoCompletionStream(videoParams, account, assistantId, 0, autoDelete);
-                        if (isPooled) {
-                            const token = account.token;
-                            s.on('end', () => AccountManager.releaseToken(token));
-                            s.on('error', () => AccountManager.releaseToken(token));
-                        }
-                        return new Response(s, {
-                            type: "text/event-stream",
-                            headers: {
-                                "Cache-Control": "no-cache, no-transform",
-                                "Connection": "keep-alive",
-                                "X-Accel-Buffering": "no"
-                            }
-                        });
-                    } else {
-                        const result = await video.createVideoCompletion(videoParams, account, assistantId, 0, autoDelete);
-                        if (isPooled) AccountManager.releaseToken(account.token);
-                        return result;
-                    }
+                    await video.createVideoCompletion(videoParams, account, undefined, 0, autoDelete);
+                    // Token 的释放已在控制器后台逻辑中处理
                 } catch (err: any) {
-                    lastError = err;
-                    if (isPooled && account) {
-                        const statusCode = err.errcode || err.status || err.statusCode || err.response?.status;
-                        let policyAction = 'error';
-                        if (statusCode) {
-                            policyAction = AccountManager.applyResponsePolicy(account.id, statusCode);
-                        }
-                        AccountManager.releaseToken(account.token);
-
-                        if (policyAction === 'retry' && attempt < maxRetries) {
-                            const l = require('@/lib/logger.ts').default;
-                            l.warn(`[API] 策略触发重试视频 (第 ${attempt}/${maxRetries} 次): ${statusCode}.`);
-                            continue;
-                        }
-                    }
-                    throw err;
+                    const l = require('@/lib/logger.ts').default;
+                    l.error(`[Video-Route] 异步任务启动失败: ${err.message}`);
+                    VideoTaskManager.updateTask(task.id, {
+                        status: 'failed',
+                        error: { code: 'start_failed', message: err.message }
+                    });
+                    if (isPooled && account) AccountManager.releaseToken(account.token);
                 }
+            })();
+
+            // 立即返回任务信息
+            return new Response({
+                id: task.id,
+                model: task.model,
+                status: task.status,
+                created_at: task.created_at
+            });
+        }
+    },
+
+    get: {
+        /**
+         * 获取视频生成任务状态
+         * 路径：/v1/video/generations/:id
+         */
+        '/generations/:id': async (request: Request) => {
+            const id = request.params.id;
+            const VideoTaskManager = require('@/lib/video-task-manager.ts').default;
+            const task = VideoTaskManager.getTask(id);
+
+            if (!task) {
+                throw new APIException(EX.API_REQUEST_FAILED, '未找到指定的任务');
             }
-            if (lastError instanceof APIException) {
-                return new Response(new FailureBody(lastError), { statusCode: lastError.httpStatusCode });
-            }
-            throw lastError;
+
+            return new Response(task);
         }
     }
 };

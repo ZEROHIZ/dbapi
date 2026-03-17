@@ -91,6 +91,7 @@ export interface Settings {
   cooldownTime: number; // 毫秒
   defaultModel: string;
   enableHealthCheck?: boolean; // 新增：是否开启全局健康检查
+  videoPollingTimeout?: number; // 新增：视频生成后台轮询超时（秒）
 }
 
 export type RequestType = "chat" | "image" | "video";
@@ -101,6 +102,7 @@ class AccountManager extends EventEmitter {
   private settings: Settings = {
     cooldownTime: 10000,
     defaultModel: "doubao-lite-4k",
+    videoPollingTimeout: 600
   };
 
   
