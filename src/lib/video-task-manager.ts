@@ -6,6 +6,7 @@ import logger from './logger.ts';
 
 export interface VideoTask {
     id: string;
+    task_id: string; // 增加 task_id 字段用于兼容
     model: string;
     status: 'pending' | 'processing' | 'succeeded' | 'failed';
     created_at: number;
@@ -59,6 +60,7 @@ class VideoTaskManager {
         const id = `vtask-${util.uuid(false)}`;
         const task: VideoTask = {
             id,
+            task_id: id,
             model,
             status: 'pending',
             created_at: util.unixTimestamp()

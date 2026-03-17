@@ -4,9 +4,18 @@ import json
 import sys
 
 # ================= 配置区域 =================
-BASE_URL = "http://127.0.0.1:5566/v1"
+# BASE_URL = "http://127.0.0.1:5566/v1"
+# HEADERS = {
+#     "Authorization": "Bearer pooled",
+#     "Content-Type": "application/json"
+# }
+# BASE_URL = "http://192.168.110.30:5566/v1/images/generations"
+# BASE_URL = "http://192.168.110.30:7000/v1/video/generations"
+BASE_URL = "http://192.168.110.30:7000/v1/video"
+API_KEY = "sk-VdJ4DV8srDJVKYzbC1eWuokjohrWRfAqu5IQG29jptOoANUj"
+# API_KEY ="pooled"
 HEADERS = {
-    "Authorization": "Bearer pooled",
+    "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
 }
 # ===========================================
@@ -22,23 +31,27 @@ def test_async_video_flow():
     }
     
     try:
-        response = requests.post(f"{BASE_URL}/video/generations", headers=HEADERS, json=payload)
+        # 修正：BASE_URL 已经包含 /v1/video，这里只需加 /generations
+        response = requests.post(f"{BASE_URL}/generations", headers=HEADERS, json=payload)
         response.raise_for_status()
         task_data = response.json()
         
-        task_id = task_data.get("id")
+        # 字段兼容处理
+        task_id = task_data.get("task_id") or task_data.get("id")
         print(f"✅ 任务已创建! Task ID: {task_id}")
         print(f"📦 初始状态: {task_data.get('status')}")
         
         if not task_id:
             print("❌ 错误：未获取到 Task ID")
+            print(f"服务端完整返回: {json.dumps(task_data, indent=2, ensure_ascii=False)}")
             return
 
         print(f"\n⏳ [2/3] 开始轮询任务状态 (每 10 秒一次)...")
         start_time = time.time()
         
         while True:
-            poll_resp = requests.get(f"{BASE_URL}/video/generations/{task_id}", headers=HEADERS)
+            # 修正：拼接轮询地址
+            poll_resp = requests.get(f"{BASE_URL}/generations/{task_id}", headers=HEADERS)
             poll_resp.raise_for_status()
             status_data = poll_resp.json()
             

@@ -98,6 +98,7 @@ export default {
             // 立即返回任务信息
             return new Response({
                 id: task.id,
+                task_id: task.id, // 增加 task_id 字段
                 model: task.model,
                 status: task.status,
                 created_at: task.created_at
