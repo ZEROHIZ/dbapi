@@ -37,7 +37,7 @@ def test_async_video_flow():
         task_data = response.json()
         
         # 字段兼容处理
-        task_id = task_data.get("task_id") or task_data.get("id")
+        task_id = task_data.get("task_id")
         print(f"✅ 任务已创建! Task ID: {task_id}")
         print(f"📦 初始状态: {task_data.get('status')}")
         
