@@ -329,7 +329,7 @@ async function createCompletion(
         const refFileUrls = extractRefFileUrls(messages);
         const refs = refFileUrls.length
             ? await Promise.all(
-                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context.token))
+                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context))
             )
             : [];
 
@@ -436,7 +436,7 @@ async function createCompletionStream(
         const refFileUrls = extractRefFileUrls(messages);
         const refs = refFileUrls.length
             ? await Promise.all(
-                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context.token))
+                refFileUrls.map((fileUrl) => uploadFile(fileUrl, context))
             )
             : [];
 
@@ -933,8 +933,8 @@ function buildAuthorization(
     return {authorization, amzDate, payloadHash};
 }
 
-async function acquireUploadAuth(refreshToken: string, resourceType: number) {
-    const data: any = await request("post", "/alice/resource/prepare_upload", refreshToken, {
+async function acquireUploadAuth(context: AccountContext, resourceType: number) {
+    const data: any = await request("post", "/alice/resource/prepare_upload", context, {
         data: {tenant_id: "5", scene_id: "5", resource_type: resourceType},
         headers: {"agw-js-conv": "str"},
     });
@@ -1176,14 +1176,16 @@ async function commitImageUpload(
  * 上传文件
  *
  * @param fileUrl 文件URL
- * @param refreshToken 用于刷新access_token的refresh_token
+ * @param context 账号上下文（需要一致的 deviceId/webId 才能通过上传鉴权）
  * @param isVideoImage 是否是用于视频图像
  */
 async function uploadFile(
     fileUrl: string,
-    refreshToken: string,
+    context: AccountContext | string,
     isVideoImage: boolean = false
 ) {
+    // 兼容旧调用方式：如果传入的是字符串，则转换为 AccountContext
+    const ctx: AccountContext = typeof context === 'string' ? normalizeAccount(context) : context;
     await checkFileUrl(fileUrl);
 
     let filename: string, fileData: Buffer, mimeType: string | undefined, extFromMime: string | undefined;
@@ -1194,15 +1196,49 @@ async function uploadFile(
         fileData = Buffer.from(util.removeBASE64DataHeader(fileUrl), "base64");
     }
     else {
-        filename = path.basename(fileUrl);
+        // 允许的图片后缀白名单
+        const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'svg'];
+        
+        // 去除查询参数获取纯净文件名
+        try {
+            const urlObj = new URL(fileUrl);
+            filename = path.basename(urlObj.pathname);
+            // 尝试从 URL 查询参数中获取 format 信息（如 format=.webp）
+            const formatParam = urlObj.searchParams.get('format');
+            if (formatParam) {
+                const formatExt = formatParam.replace(/^\./, '').toLowerCase();
+                if (ALLOWED_IMAGE_EXTENSIONS.includes(formatExt)) {
+                    extFromMime = formatExt;
+                    logger.info(`[uploadFile] 从 URL format 参数推断扩展名: ${formatExt}`);
+                }
+            }
+        } catch {
+            filename = path.basename(fileUrl.split('?')[0]);
+        }
+
+        // 下载远程图片时，携带浏览器 headers 以避免被 CDN 拦截（如字节跳动 CDN 会返回 403）
         const resp = await axios.get(fileUrl, {
             responseType: "arraybuffer",
-            // 100M限制
             maxContentLength: FILE_MAX_SIZE,
-            // 60秒超时
             timeout: 60000,
+            headers: {
+                "User-Agent": FAKE_HEADERS["User-Agent"],
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://www.doubao.com",
+            },
         });
         fileData = resp.data as Buffer;
+        
+        // 优先从响应头 Content-Type 推断 MIME 类型
+        const respContentType = resp.headers?.["content-type"];
+        if (respContentType && /^image\//.test(respContentType)) {
+            mimeType = respContentType.split(';')[0].trim();
+            const inferredExt = mime.getExtension(mimeType);
+            if (inferredExt && ALLOWED_IMAGE_EXTENSIONS.includes(inferredExt)) {
+                extFromMime = extFromMime || inferredExt;
+                logger.info(`[uploadFile] 从响应 Content-Type 推断: mime=${mimeType}, ext=${extFromMime}`);
+            }
+        }
     }
 
     mimeType = mimeType || mime.getType(filename) || "application/octet-stream";
@@ -1210,7 +1246,7 @@ async function uploadFile(
     const ext = (extFromMime || path.extname(filename).replace(/^\./, "") || (mime.getExtension(mimeType) || "bin")).toLowerCase();
 
     try {
-        const auth = await acquireUploadAuth(refreshToken, isImage ? 2 : 1);
+        const auth = await acquireUploadAuth(ctx, isImage ? 2 : 1);
         logger.info(`STS acquired for ${isImage ? "image" : "file"}`);
 
         const apply = await applyImageUpload(

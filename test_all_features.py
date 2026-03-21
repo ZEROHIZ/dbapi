@@ -88,18 +88,21 @@ def test_text_to_image():
 # --- 2. 图生图 ---
 def test_image_to_image():
     print("\n--- 🖼️ 2. 图生图 (Image to Image) ---")
-    img_path = input("请输入参考图片路径 (例如 1.jpg): ").strip('"').strip("'")
-    if not img_path: return
+    img_input = input("请输入参考图片路径或 URL (例如 1.jpg): ").strip('"').strip("'")
+    if not img_input: return
     
-    base64_img = encode_image(img_path)
-    if not base64_img: return
+    if img_input.startswith(("http://", "https://")):
+        img_url = img_input
+    else:
+        img_url = encode_image(img_input)
+        if not img_url: return
 
     prompt = input("请输入修改提示词 (默认: 变成卡通风格): ") or "变成卡通风格"
 
     payload = {
         "model": "Seedream 4.0",
         "prompt": prompt,
-        "image": base64_img,
+        "image": img_url,
         "ratio": "1:1",
         "style": "通用",
         "stream": False
@@ -124,17 +127,20 @@ def test_text_to_video():
 # --- 4. 图生视频 ---
 def test_image_to_video():
     print("\n--- 🎬 4. 图生视频 (Image to Video) ---")
-    img_path = input("请输入首帧图片路径 (例如 1.jpg): ").strip('"').strip("'")
-    if not img_path: return
+    img_input = input("请输入首帧图片路径或 URL (例如 1.jpg): ").strip('"').strip("'")
+    if not img_input: return
     
-    base64_img = encode_image(img_path)
-    if not base64_img: return
+    if img_input.startswith(("http://", "https://")):
+        img_url = img_input
+    else:
+        img_url = encode_image(img_input)
+        if not img_url: return
 
     prompt = input("请输入动态描述 (默认: 镜头缓慢推进): ") or "镜头缓慢推进"
 
     payload = {
         "prompt": prompt,
-        "image": base64_img,
+        "image": img_url,
         "ratio": "16:9",
         "stream": False
     }
@@ -145,10 +151,18 @@ def test_image_to_video():
 # --- 5. 对话聊天 ---
 def test_chat():
     print("\n--- 💬 5. 对话 (Chat Completions) ---")
+    print("1. 纯文本对话")
+    print("2. 图文多模态对话")
+    choice = input("请选择 (1/2, 默认 1): ") or "1"
+    
+    if choice == "2":
+        test_image_text_chat()
+        return
+
     prompt = input("请输入你想对豆包说的话 (默认: 你好，请自我介绍一下): ") or "你好，请自我介绍一下"
     
     payload = {
-        "model": "doubao1",
+        "model": "doubao",
         "messages": [
             {
                 "role": "user",
@@ -160,6 +174,66 @@ def test_chat():
     }
     
     run_request("chat/completions", payload, "chat")
+
+def test_image_text_chat():
+    print("\n--- 🖼️💬 图文对话测试 (Image-Text Chat) ---")
+    img_input = input("请输入图片路径或 URL (默认使用示例 URL): ").strip('"').strip("'")
+    if not img_input:
+        img_url = "https://p3-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/5326d5d1665145f896a3840e4b15aa4de~tplv-tb4s082cfz-aigc_resize:360:360.webp?lk3s=7c3bb0db&x-expires=1775520000&x-signature=HI7bxrfiMlpfarBi%2Fw1km26usl8%3D&format=.webp"
+        print(f"ℹ️ 使用默认图片 URL: {img_url}")
+    elif img_input.startswith(("http://", "https://")):
+        img_url = img_input
+    else:
+        img_url = encode_image(img_input)
+        if not img_url: return
+
+    prompt = input("请输入问题 (默认: 这张图片里面有什么？): ") or "这张图片里面有什么？"
+
+    # 构建多模态消息负载
+    payload = {
+        "model": "doubao",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": img_url}}
+                ]
+            }
+        ],
+        "stream": False
+    }
+
+    try:
+        print(f"🚀 发送请求到: /chat/completions")
+        start_time = time.time()
+        
+        response = requests.post(f"{BASE_URL}/chat/completions", headers=HEADERS, json=payload)
+        response.raise_for_status()
+        
+        duration = time.time() - start_time
+        print(f"✅ 请求完成！耗时: {duration:.2f}秒")
+        
+        data = response.json()
+        print("\n🔍 接口返回内容:")
+        print("-" * 50)
+        if 'choices' in data:
+            content = data['choices'][0]['message']['content']
+            if not content:
+                print("⚠️ 返回内容为空，原始 JSON 如下:")
+                print(json.dumps(data, indent=2, ensure_ascii=False))
+            else:
+                print(content)
+        else:
+            print(json.dumps(data, indent=2, ensure_ascii=False))
+        print("-" * 50)
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ HTTP错误: {e}")
+        if e.response: 
+            print("   服务端状态码:", e.response.status_code)
+            print("   服务端返回:", e.response.text)
+    except Exception as e:
+        print(f"❌ 发生错误: {e}")
 # --- 6. 工具调用测试 ---
 def test_tool_calling():
     print("\n--- 🔧 6. 工具调用测试 (Tool Calling) ---")

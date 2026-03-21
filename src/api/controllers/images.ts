@@ -524,6 +524,10 @@ async function checkFileUrl(fileUrl: string) {
         const result = await axios.head(fileUrl, {
             timeout: 15000,
             validateStatus: () => true,
+            headers: {
+                "User-Agent": FAKE_HEADERS["User-Agent"],
+                "Accept": "*/*",
+            },
         });
         // 忽略 405 Method Not Allowed，因为部分服务器（如字节CDN）禁用HEAD请求
         if (result.status >= 400 && result.status !== 405)
@@ -905,20 +909,50 @@ async function uploadFile(
         filename = `${util.uuid()}.${extFromMime || "bin"}`;
         fileData = Buffer.from(util.removeBASE64DataHeader(fileUrl), "base64");
     } else {
+        // 允许的图片后缀白名单
+        const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'svg'];
+        
         // 去除查询参数获取纯净文件名
         try {
             const urlObj = new URL(fileUrl);
             filename = path.basename(urlObj.pathname);
+            // 尝试从 URL 查询参数中获取 format 信息（如 format=.webp）
+            const formatParam = urlObj.searchParams.get('format');
+            if (formatParam) {
+                const formatExt = formatParam.replace(/^\./, '').toLowerCase();
+                if (ALLOWED_IMAGE_EXTENSIONS.includes(formatExt)) {
+                    extFromMime = formatExt;
+                    logger.info(`[uploadFile] 从 URL format 参数推断扩展名: ${formatExt}`);
+                }
+            }
         } catch {
             filename = path.basename(fileUrl.split('?')[0]);
         }
         
+        // 下载远程图片时，携带浏览器 headers 以避免被 CDN 拦截（如字节跳动 CDN 会返回 403）
         const resp = await axios.get(fileUrl, {
             responseType: "arraybuffer",
             maxContentLength: FILE_MAX_SIZE,
             timeout: 60000,
+            headers: {
+                "User-Agent": FAKE_HEADERS["User-Agent"],
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            },
         });
         fileData = resp.data as Buffer;
+        
+        // 优先从响应头 Content-Type 推断 MIME 类型
+        const respContentType = resp.headers?.["content-type"];
+        if (respContentType && /^image\//.test(respContentType)) {
+            mimeType = respContentType.split(';')[0].trim();
+            const inferredExt = mime.getExtension(mimeType);
+            if (inferredExt && ALLOWED_IMAGE_EXTENSIONS.includes(inferredExt)) {
+                extFromMime = extFromMime || inferredExt;
+                logger.info(`[uploadFile] 从响应 Content-Type 推断: mime=${mimeType}, ext=${extFromMime}`);
+            }
+        }
     }
 
     mimeType = mimeType || mime.getType(filename) || "application/octet-stream";
