@@ -215,6 +215,7 @@ class AccountManager extends EventEmitter {
         type: a.type, weight: a.weight,
         baseUrl: a.baseUrl, apiKey: a.apiKey, capability: a.capability, modelName: a.modelName,
         models: a.models, modelMapping: a.modelMapping, mergePolicy: a.mergePolicy || "merge",
+        remark: a.remark,
         deviceId: a.deviceId, webId: a.webId, userId: a.userId,
         limitChat: a.limitChat, limitImage: a.limitImage, limitVideo: a.limitVideo,
         usageChat: a.usageChat, usageImage: a.usageImage, usageVideo: a.usageVideo,
