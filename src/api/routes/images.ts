@@ -42,7 +42,7 @@ export default {
                 .validate('body.style', (v) => _.isUndefined(v) || _.isString(v))
                 .validate('body.stream', _.isBoolean)
                 .validate('headers.authorization', _.isString)
-                .validate('body.image', (v) => _.isUndefined(v) || _.isString(v)); // 参考图为可选字符串
+                .validate('body.image', (v) => _.isUndefined(v) || _.isString(v) || (_.isArray(v) && v.every(_.isString))); // 参考图为可选字符串或字符串数组
 
             // 2. 处理Token
             const authHeader = request.headers.authorization || "";
@@ -71,7 +71,7 @@ export default {
                 size, // Added
                 response_format, // Added
                 auto_delete // Added
-            } = request.body as ImageCompletionRequestBody & { image?: string };
+            } = request.body as ImageCompletionRequestBody & { image?: string | string[] };
 
             const autoDelete = _.isBoolean(auto_delete) ? auto_delete : true; // Determine autoDelete value
             let assistantId = model && /^[a-z0-9]{24,}$/.test(model) ? model : undefined;
@@ -113,7 +113,7 @@ export default {
                         const s = await images.createImageCompletionStream({
                             model,
                             prompt,
-                            ratio: size || ratio || "1:1",
+                            ratio: size || ratio, // 不设默认值，由 controller 根据参考图尺寸决定
                             style: style || "auto",
                             referenceImage
                         }, account, assistantId, 0, autoDelete);
@@ -134,7 +134,7 @@ export default {
                         const result = await images.createImageCompletion({
                             model,
                             prompt,
-                            ratio: size || ratio || "1:1",
+                            ratio: size || ratio, // 不设默认值，由 controller 根据参考图尺寸决定
                             style: style || "auto",
                             referenceImage
                         }, account, assistantId, 0, autoDelete);

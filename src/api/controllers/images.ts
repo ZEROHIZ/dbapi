@@ -213,6 +213,32 @@ async function removeConversation(
 }
 
 /**
+ * 根据图片宽高自动推断最接近的标准比例
+ */
+function detectRatio(width: number, height: number): string {
+    const r = width / height;
+    const ratios = [
+        { ratio: "1:1", value: 1 },
+        { ratio: "16:9", value: 16 / 9 },
+        { ratio: "9:16", value: 9 / 16 },
+        { ratio: "4:3", value: 4 / 3 },
+        { ratio: "3:4", value: 3 / 4 },
+        { ratio: "3:2", value: 3 / 2 },
+        { ratio: "2:3", value: 2 / 3 },
+    ];
+    let closest = ratios[0];
+    let minDiff = Math.abs(r - closest.value);
+    for (const entry of ratios) {
+        const diff = Math.abs(r - entry.value);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = entry;
+        }
+    }
+    return closest.ratio;
+}
+
+/**
  * 同步图片生成补全（对齐官方请求格式，新增extra字段）
  * @param imageParams 图片生成参数 {model, prompt, ratio, style, referenceImage, genModel?: string}
  * @param account 账号信息对象或refreshToken字符串
@@ -223,9 +249,9 @@ async function createImageCompletion(
     imageParams: {
         model: string;
         prompt: string;
-        ratio: string;
+        ratio?: string;
         style: string;
-        referenceImage?: string;
+        referenceImage?: string | string[];
         genModel?: string;
     },
     account: any,
@@ -241,26 +267,40 @@ async function createImageCompletion(
         logger.info(`收到图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}, 生图模型=${genModel}`);
         const context = normalizeAccount(account);
 
-        let attachments = [];
+        let attachments: any[] = [];
         if (referenceImage) {
+            const refImages = Array.isArray(referenceImage) ? referenceImage : [referenceImage];
             try {
-                const refImage = await uploadFile(referenceImage, context);
-                if (refImage && refImage.file_url?.url) {
-                    attachments = [{
-                        type: "image",
-                        key: refImage.file_url.url,
-                        extra: {
-                            refer_types: "overall"
-                        },
-                        identifier: util.uuid(),
-                    }];
-                    logger.info(`参考图上传成功，附件构造完成：${refImage.file_url.url}`);
+                const uploadResults = await Promise.all(
+                    refImages.map(img => uploadFile(img, context))
+                );
+                for (const refImage of uploadResults) {
+                    if (refImage && refImage.file_url?.url) {
+                        attachments.push({
+                            type: "image",
+                            key: refImage.file_url.url,
+                            extra: {
+                                refer_types: "overall"
+                            },
+                            identifier: util.uuid(),
+                        });
+                        logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                    }
+                }
+                // 如果未指定 ratio，从第一张图片的尺寸推断
+                if (!ratio && uploadResults.length > 0 && uploadResults[0]) {
+                    const firstImage = uploadResults[0];
+                    if (firstImage.width && firstImage.height) {
+                        ratio = detectRatio(firstImage.width, firstImage.height);
+                        logger.info(`根据参考图尺寸自动设置比例: ${ratio} (${firstImage.width}x${firstImage.height})`);
+                    }
                 }
             } catch (err: any) {
                 logger.error(`参考图上传失败：${err.message}`);
                 throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
             }
         }
+        if (!ratio) ratio = "1:1"; // 最终默认值
 
         const contentJson = JSON.stringify({
             text: `帮我生成图片：${prompt}\n风格：${style}\n比例：${ratio}`,
@@ -357,7 +397,7 @@ async function createImageCompletion(
  * @param retryCount 重试次数
  */
 async function createImageCompletionStream(
-    imageParams: { model: string; prompt: string; ratio: string; style: string; referenceImage?: string; genModel?: string },
+    imageParams: { model: string; prompt: string; ratio?: string; style: string; referenceImage?: string | string[]; genModel?: string },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0,
@@ -371,27 +411,41 @@ async function createImageCompletionStream(
         logger.info(`收到流式图片生成请求：prompt=${prompt}, ratio=${ratio}, style=${style}, 参考图=${!!referenceImage}, 生图模型=${genModel}`);
         const context = normalizeAccount(account);
 
-        let attachments = [];
+        let attachments: any[] = [];
         if (referenceImage) {
+            const refImages = Array.isArray(referenceImage) ? referenceImage : [referenceImage];
             try {
-                const refImage = await uploadFile(referenceImage, context);
-                if (refImage && refImage.file_url?.url) {
-                    attachments = [{
-                        type: "vlm_image",
-                        identifier: util.uuid(),
-                        name: refImage.name || "reference-image.png",
-                        key: refImage.file_url.url,
-                        file_review_state: 3,
-                        file_parse_state: 3,
-                        option: {width: refImage.width || 1, height: refImage.height || 1},
-                    }];
-                    logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                const uploadResults = await Promise.all(
+                    refImages.map(img => uploadFile(img, context))
+                );
+                for (const refImage of uploadResults) {
+                    if (refImage && refImage.file_url?.url) {
+                        attachments.push({
+                            type: "vlm_image",
+                            identifier: util.uuid(),
+                            name: refImage.name || "reference-image.png",
+                            key: refImage.file_url.url,
+                            file_review_state: 3,
+                            file_parse_state: 3,
+                            option: {width: refImage.width || 1, height: refImage.height || 1},
+                        });
+                        logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                    }
+                }
+                // 如果未指定 ratio，从第一张图片的尺寸推断
+                if (!ratio && uploadResults.length > 0 && uploadResults[0]) {
+                    const firstImage = uploadResults[0];
+                    if (firstImage.width && firstImage.height) {
+                        ratio = detectRatio(firstImage.width, firstImage.height);
+                        logger.info(`根据参考图尺寸自动设置比例: ${ratio} (${firstImage.width}x${firstImage.height})`);
+                    }
                 }
             } catch (err: any) {
                 logger.error(`参考图上传失败：${err.message}`);
                 throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
             }
         }
+        if (!ratio) ratio = "1:1"; // 最终默认值
 
         const imageMessage = [
             {

@@ -8,3 +8,4 @@ bug.md
 /data
 *.log
 .request_debug.jsonl
+.jpg

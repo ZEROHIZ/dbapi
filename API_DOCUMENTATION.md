@@ -44,7 +44,9 @@ Authorization: Bearer pooled
 
 ### 1.2 图文对话 (多模态)
 
-**请求示例**:
+支持在单条消息中传入多张图片，所有图片会一次性上传并发送。
+
+**请求示例（多图）**:
 ```json
 {
   "model": "doubao",
@@ -54,12 +56,18 @@ Authorization: Bearer pooled
       "content": [
         {
           "type": "text",
-          "text": "这张图片里有什么？"
+          "text": "比较这两张图片有什么不同？"
         },
         {
           "type": "image_url",
           "image_url": {
-            "url": "https://example.com/image.jpg" // 支持 URL 或 Base64
+            "url": "https://example.com/image1.jpg"
+          }
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "https://example.com/image2.jpg"
           }
         }
       ]
@@ -67,7 +75,6 @@ Authorization: Bearer pooled
   ],
   "stream": false,
   "auto_delete": false
-
 }
 ```
 
@@ -149,13 +156,28 @@ Authorization: Bearer pooled
 
 ### 2.2 图生图 (Image to Image)
 
-**请求示例**:
+支持单张或多张参考图。`image` 可以是字符串或字符串数组。
+如果不指定 `ratio`，将自动根据第一张参考图的尺寸推断最接近的标准比例。
+
+**单图请求示例**:
 ```json
 {
     "model": "Seedream 4.0",
     "prompt": "变成卡通风格",
-    "image": "https://example.com/original.jpg", // 支持 URL 或 Base64
-    "ratio": "1:1",
+    "image": "https://example.com/original.jpg",
+    "stream": false
+}
+```
+
+**多图请求示例**:
+```json
+{
+    "model": "Seedream 4.0",
+    "prompt": "把两张图片融合成一张",
+    "image": [
+        "https://example.com/image1.jpg",
+        "https://example.com/image2.jpg"
+    ],
     "stream": false
 }
 ```
@@ -303,7 +325,7 @@ Authorization: Bearer pooled
 
 ### 6.2 版本查询
 - **地址**: `GET /admin/version`
-- **响应**: `{"version": "1.0.0"}`
+- **响应**: `{"version": "2.2"}`
 
 ---
 
