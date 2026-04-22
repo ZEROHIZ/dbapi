@@ -174,6 +174,17 @@ async function request(method: string, uri: string, context: AccountContext, opt
 }
 
 /**
+ * 校验请求结果
+ */
+function checkResult(result: AxiosResponse) {
+    if (!result.data) return null;
+    const { code, msg, data } = result.data;
+    if (!_.isFinite(code)) return result.data;
+    if (code === 0) return data;
+    throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${msg || '未知错误'}`);
+}
+
+/**
  * 移除会话
  *
  * 在对话流传输完毕后移除会话，避免创建的会话出现在用户的对话列表中
@@ -185,6 +196,10 @@ async function removeConversation(
     convId: string,
     context: AccountContext
 ) {
+    if (!convId || convId === "0") {
+        logger.warn(`会话 ID 为空，跳过删除逻辑。`);
+        return;
+    }
     try {
         // 添加必要的查询参数
         const params = {
@@ -349,6 +364,18 @@ async function createImageCompletion(
             responseType: "stream"
         });
 
+        if (response.status !== 200) {
+            let errorMsg = `HTTP ${response.status} ${response.statusText}`;
+            if (response.data && response.data.on) {
+                // 如果是流，读取一点数据看是否有错误
+                const errData = await new Promise((resolve) => {
+                    response.data.once("data", (chunk: Buffer) => resolve(chunk.toString()));
+                    setTimeout(() => resolve("timeout"), 1000);
+                });
+                errorMsg += ` - ${errData}`;
+            }
+            throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${errorMsg}`);
+        }
         const contentType = response.headers["content-type"] || "";
         if (contentType.indexOf("text/event-stream") === -1) {
             response.data.on("data", (buffer) => logger.error(buffer.toString()));
@@ -1080,18 +1107,6 @@ async function uploadFile(
     }
 }
 
-/**
- * 检查请求结果
- *
- * @param result 结果
- */
-function checkResult(result: AxiosResponse) {
-    if (!result.data) return null;
-    const {code, msg, data} = result.data;
-    if (!_.isFinite(code)) return result.data;
-    if (code === 0) return data;
-    throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${msg}`);
-}
 
 /**
  * 从流接收完整的消息内容
@@ -1427,7 +1442,8 @@ function tokenSplit(authorization: string) {
  * 获取Token存活状态
  */
 async function getTokenLiveStatus(refreshToken: string) {
-    const result = await request("POST", "/passport/account/info/v2", refreshToken, {
+    const context = normalizeAccount(refreshToken);
+    const result = await request("POST", "/passport/account/info/v2", context, {
         params: {
             account_sdk_source: "web"
         }

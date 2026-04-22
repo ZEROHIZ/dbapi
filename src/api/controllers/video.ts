@@ -101,9 +101,43 @@ function generateFakeMsToken() {
  * 生成伪a_bogus
  */
 function generateFakeABogus() {
-    return `mf-${util.generateRandomString({length: 34,})}
--${util.generateRandomString({length: 6,})}
-`;
+    return `mf-${util.generateRandomString({length: 34,})}-${util.generateRandomString({length: 6,})}`;
+}
+
+/**
+ * 移除会话
+ */
+async function removeConversation(
+    convId: string,
+    context: AccountContext
+) {
+    if (!convId || convId === "0") {
+        logger.warn(`会话 ID 为空，跳过删除逻辑。`);
+        return;
+    }
+    try {
+        const params = {
+            msToken: generateFakeMsToken(),
+            a_bogus: generateFakeABogus()
+        };
+
+        // 添加必要的请求头
+        const headers = {
+            Referer: `https://www.doubao.com/chat/${convId}`,
+            "Agw-js-conv": "str",
+            "Sec-Ch-Ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\""
+        };
+        await request("POST", "/samantha/thread/delete", context, {
+            data: {
+                conversation_id: convId
+            },
+            params,
+            headers
+        });
+        logger.success(`会话 ${convId} 删除成功`);
+    } catch (err) {
+        logger.error(`删除会话 ${convId} 失败:`, err);
+    }
 }
 
 /**
@@ -162,33 +196,6 @@ async function request(method: string, uri: string, context: AccountContext, opt
     return checkResult(response);
 }
 
-/**
- * 移除会话
- */
-async function removeConversation(
-    convId: string,
-    context: AccountContext
-) {
-    try {
-        const params = {
-            msToken: generateFakeMsToken(),
-            a_bogus: generateFakeABogus()
-        };
-        const headers = {
-            Referer: `https://www.doubao.com/chat/${convId}`,
-            "Agw-js-conv": "str",
-            "Sec-Ch-Ua": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"'
-        };
-        await request("POST", "/samantha/thread/delete", context, {
-            data: { conversation_id: convId },
-            params,
-            headers
-        });
-        logger.success(`会话 ${convId} 删除成功`);
-    } catch (err) {
-        logger.error(`删除会话 ${convId} 失败:`, err);
-    }
-}
 
 /**
  * 获取无水印视频播放信息
@@ -558,6 +565,19 @@ async function createVideoCompletionStream(
             timeout: 300000,
             responseType: "stream"
         });
+
+        if (response.status !== 200) {
+            let errorMsg = `HTTP ${response.status} ${response.statusText}`;
+            if (response.data && response.data.on) {
+                // 如果是流，读取一点数据看是否有错误
+                const errData = await new Promise((resolve) => {
+                    response.data.once("data", (chunk: Buffer) => resolve(chunk.toString()));
+                    setTimeout(() => resolve("timeout"), 1000);
+                });
+                errorMsg += ` - ${errData}`;
+            }
+            throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${errorMsg}`);
+        }
 
         const contentType = response.headers["content-type"] || "";
         if (contentType.indexOf("text/event-stream") === -1) {
@@ -984,8 +1004,28 @@ function tokenSplit(authorization: string) {
     return authorization.replace("Bearer ", "").split(",");
 }
 
+/**
+ * 获取Token存活状态
+ */
+async function getTokenLiveStatus(refreshToken: string) {
+    const context = normalizeAccount(refreshToken);
+    const result = await request("POST", "/passport/account/info/v2", context, {
+        params: {
+            account_sdk_source: "web"
+        }
+    });
+    try {
+        return !!(result && (result as any).user_id);
+    } catch (err) {
+        return false;
+    }
+}
+
+
 export default {
     createVideoCompletion,
     createVideoCompletionStream,
+    getTokenLiveStatus,
+    removeConversation,
     tokenSplit,
 };

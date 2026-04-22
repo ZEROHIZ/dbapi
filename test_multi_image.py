@@ -32,22 +32,45 @@ def encode_image(image_path):
             mime = "image/octet-stream"
         return f"data:{mime};base64,{encoded_string}"
 
+def mask_base64(obj):
+    """递归掩码对象中的 Base64 字符串"""
+    if isinstance(obj, str) and (obj.startswith("data:") or len(obj) > 100):
+        if "base64," in obj:
+            prefix, _ = obj.split("base64,", 1)
+            return f"{prefix}base64,[OMITTED,len={len(obj)}]"
+        return f"[OMITTED_STRING,len={len(obj)}]"
+    elif isinstance(obj, dict):
+        return {k: mask_base64(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [mask_base64(i) for i in obj]
+    return obj
+
+def print_request(url, payload):
+    """打印请求信息（掩码 Base64）"""
+    print("\n📤 发送请求:")
+    print(f"URL: {url}")
+    masked_payload = mask_base64(payload)
+    print("Payload:")
+    print(json.dumps(masked_payload, indent=2, ensure_ascii=False))
+
 def print_response(response):
     """统一打印响应逻辑"""
     try:
         data = response.json()
-        print("✅ 响应成功:")
-        print(json.dumps(data, indent=2, ensure_ascii=False))
-        
-        # 尝试提取图片链接
-        if "choices" in data:
-            content = data["choices"][0]["message"].get("content", "")
-            if "images" in data["choices"][0]["message"]:
-                imgs = data["choices"][0]["message"]["images"]
-                print(f"🎨 生成的图片: {imgs}")
-            elif "videos" in data["choices"][0]["message"]:
-                vids = data["choices"][0]["message"]["videos"]
-                print(f"🎬 生成的视频: {vids}")
+        if response.status_code == 200:
+            print("✅ 响应成功:")
+            print(json.dumps(data, indent=2, ensure_ascii=False))
+            # 尝试提取图片链接
+            if "choices" in data:
+                message = data["choices"][0]["message"]
+                if "images" in message:
+                    print(f"🎨 生成的图片: {message['images']}")
+                if "videos" in message:
+                    print(f"🎬 生成的视频: {message['videos']}")
+        else:
+            print(f"❌ 响应失败 (HTTP {response.status_code}):")
+            print(json.dumps(data, indent=2, ensure_ascii=False))
+
     except Exception as e:
         print(f"⚠️ 无法解析响应 JSON: {e}")
         print(response.text)
@@ -91,8 +114,10 @@ def test_multi_image_chat():
     }
 
     try:
+        url = f"{BASE_URL}/chat/completions"
+        print_request(url, payload)
         print(f"⏳ 正在请求中 (包含 {len(images)} 张图片)...")
-        response = requests.post(f"{BASE_URL}/chat/completions", headers=HEADERS, json=payload)
+        response = requests.post(url, headers=HEADERS, json=payload)
         response.raise_for_status()
         print_response(response)
     except Exception as e:
@@ -119,15 +144,17 @@ def test_multi_image_i2i():
     prompt = input("请输入修改提示词 (默认: 融合这几张图片的风格): ") or "融合这几张图片的风格"
 
     payload = {
-        "model": "Seedream 4.0",
+        "model": "Seedream 5.0 Lite",
         "prompt": prompt,
         "image": images, # 传列表即为多图模式
         "stream": False
     }
 
     try:
+        url = f"{BASE_URL}/images/generations"
+        print_request(url, payload)
         print(f"⏳ 正在请求中 (包含 {len(images)} 张参考图)...")
-        response = requests.post(f"{BASE_URL}/images/generations", headers=HEADERS, json=payload)
+        response = requests.post(url, headers=HEADERS, json=payload)
         response.raise_for_status()
         print_response(response)
     except Exception as e:
