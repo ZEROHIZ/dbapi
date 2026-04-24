@@ -66,7 +66,7 @@ export default {
                 }
             }
 
-            const maxRetries = isPooled ? 3 : 1;
+            const maxRetries = 3;
             let attempt = 0;
             let lastError: any;
 
@@ -109,18 +109,23 @@ export default {
                     }
                 } catch (err: any) {
                     lastError = err;
+                    let policyAction = 'error';
+                    const statusCode = err.errcode || err.status || err.statusCode || err.response?.status;
+                    
                     if (isPooled && account) {
-                        const statusCode = err.errcode || err.status || err.statusCode || err.response?.status;
-                        let policyAction = 'error';
                         if (statusCode) {
                             policyAction = AccountManager.applyResponsePolicy(account.id, statusCode);
                         }
                         AccountManager.releaseToken(account.token);
+                    }
 
-                        if (policyAction === 'retry' && attempt < maxRetries) {
-                            logger.warn(`[API] 策略触发重试 (第 ${attempt}/${maxRetries} 次): ${statusCode}.`);
-                            continue;
-                        }
+                    if (err.message && err.message.includes('RETRY_GENERATION_EMPTY')) {
+                        policyAction = 'retry';
+                    }
+
+                    if (policyAction === 'retry' && attempt < maxRetries) {
+                        logger.warn(`[API] 策略触发重试 (第 ${attempt}/${maxRetries} 次): ${statusCode || err.message}`);
+                        continue;
                     }
                     throw err;
                 }

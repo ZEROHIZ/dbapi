@@ -148,6 +148,10 @@
                     <p class="text-sm text-slate-500">{{ currentPageDesc }}</p>
                 </div>
                 <div class="flex items-center gap-3">
+                    <button @click="restartService" class="hidden sm:flex items-center gap-2 bg-danger/10 text-danger hover:bg-danger hover:text-white px-4 py-2 rounded-xl transition-all duration-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        <span class="text-xs font-medium">重启服务</span>
+                    </button>
                     <button @click="toggleTheme" class="w-10 h-10 glass-card flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <i :key="isDark" :data-lucide="isDark ? 'sun' : 'moon'" class="w-5 h-5" style="stroke: currentColor;"></i>
                     </button>
@@ -1291,6 +1295,30 @@
                     }
                 };
 
+                const restartService = async () => {
+                    if (!confirm("确定要重启服务吗？此操作会导致服务短暂断开。")) return;
+                    try {
+                        const res = await fetch('/admin/restart', {
+                            method: 'POST',
+                            headers: getHeaders()
+                        });
+                        if (res.ok) {
+                            showToast('服务重启中', '服务端进程被终止并重启，稍后将自动刷新页面。', 'success');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 3000);
+                        } else {
+                            showToast('操作失败', '服务端拒绝了请求。', 'error');
+                        }
+                    } catch (e) {
+                        showToast('操作提示', '已发起重启操作（连接断开属正常现象）。', 'warning');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                    }
+                };
+
+
                 const showToast = (title, msg, type = 'success') => {
                     const id = Date.now();
                     toasts.value.push({ id, title, msg, type });
@@ -1362,7 +1390,7 @@
                     filteredAccounts, requestMix, tokenChartData,
                     usageChartData, resourceEfficiency, chartView, usageChartLabels, toggleChartView,
                     toggleTheme, login, logout, fetchData, openModal, closeModal, submitAccount, 
-                    toggleAccount, resetAccount, deleteAccount, toggleChannelGroup, deleteChannelGroup, saveSettings, savePolicies,
+                    toggleAccount, resetAccount, deleteAccount, toggleChannelGroup, deleteChannelGroup, saveSettings, savePolicies, restartService,
                     addProvider: (e) => {
                         const val = e.target.value;
                         if (!val) return;

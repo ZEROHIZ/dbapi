@@ -887,11 +887,11 @@ function rfc3986Encode(str: string) {
     return encodeURIComponent(str).replace(/[!*'()]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-function sha256Hex(data: string | Buffer) {
+function sha256Hex(data: any) {
     return crypto.createHash("sha256").update(data).digest("hex");
 }
 
-function hmac(key: Buffer | string, data: string) {
+function hmac(key: any, data: string) {
     return crypto.createHmac("sha256", key).update(data, "utf8").digest();
 }
 
@@ -965,7 +965,7 @@ function buildAuthorization(
     const kService = hmac(kRegion, service);
     const kSigning = hmac(kService, "aws4_request");
     const signature = crypto
-        .createHmac("sha256", kSigning)
+        .createHmac("sha256", kSigning as any)
         .update(stringToSign, "utf8")
         .digest("hex");
     const credential = `${accessKey}/${credentialScope}`;
@@ -1487,6 +1487,10 @@ async function receiveStream(stream: any, modelId?: string): Promise<any> {
         stream.once("error", (err) => reject(err));
         stream.once("close", () => {
             finalize();
+            if (!data.id && !data.choices[0].message.content && images.length === 0) {
+                reject(new APIException(EX.API_REQUEST_FAILED, "RETRY_GENERATION_EMPTY: 会话 ID 为空且内容为空，说明生成识别需重试"));
+                return;
+            }
             resolve(data);
         });
     });

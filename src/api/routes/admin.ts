@@ -161,6 +161,13 @@ export default {
             const decodedName = decodeURIComponent(name);
             const updatedCount = await AccountManager.toggleChannel(decodedName, enabled);
             return new SuccessfulBody({ message: `Toggled ${updatedCount} keys for channel ${decodedName}` });
+        }),
+        '/admin/restart': withAuth(async () => {
+            // Delay exit slightly to allow the response to return
+            setTimeout(() => {
+                process.exit(0);
+            }, 1000);
+            return new SuccessfulBody({ message: "Restarting service..." });
         })
     },
     delete: {

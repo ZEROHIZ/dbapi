@@ -790,6 +790,10 @@ async function receiveStream(stream: any): Promise<any> {
         stream.once("close", () => {
             fs.appendFileSync(logPath, `[STREAM CLOSED]\n`);
             finalize();
+            if (!data.id && !data.choices[0].message.content && videos.length === 0) {
+                reject(new APIException(EX.API_REQUEST_FAILED, "RETRY_GENERATION_EMPTY: 会话 ID 为空且内容为空，说明生成识别需重试"));
+                return;
+            }
             resolve(data);
         });
     });

@@ -1,4 +1,4 @@
-docker run -d --init --name doubao-free-api123 -p 7000:8000 -e ADMIN_PASSWORD=123456 -e SERVER_PORT=8000 -e TZ=Asia/Shanghai -v "${PWD}/data:/app/data" -v "${PWD}/logs:/app/logs" --restart always ghcr.io/zerohiz/dbapi:main
+docker run -d --init --name doubao-free-api123 -p 7000:8000 -e ADMIN_PASSWORD=123456 -e SERVER_PORT=8000 -e TZ=Asia/Shanghai -v "${PWD}/data:/app/data" -v "${PWD}/logs:/app/logs" --restart always ghcr.io/zerohiz/dbapi:2.2.3
 # API 接口文档
 
 本文档详细说明了对话、绘图、视频生成接口的请求与返回格式。
@@ -326,6 +326,24 @@ Authorization: Bearer pooled
 ### 6.2 版本查询
 - **地址**: `GET /admin/version`
 - **响应**: `{"version": "2.2"}`
+
+### 6.3 远程重启 (Restart)
+- **地址**: `POST /admin/restart`
+- **说明**: 远程强制重启服务进程。此操作会延迟 1 秒后执行 `process.exit(0)`，需配合 Docker 的 `--restart always` 或 PM2 等进程守护工具使用。
+- **鉴权**: 需在 Header 中设置 `Authorization: Bearer [ADMIN_PASSWORD]`。
+
+**请求示例**:
+```http
+POST /admin/restart
+Authorization: Bearer your_admin_password
+```
+
+**响应示例**:
+```json
+{
+    "message": "Restarting service..."
+}
+```
 
 ---
 
