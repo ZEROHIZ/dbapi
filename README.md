@@ -76,7 +76,7 @@ docker run -d \
   -e TZ=Asia/Shanghai \
   -v $(pwd)/data:/app/data \
   --restart always \
-  ghcr.io/zerohiz/dbapi:2.2.3
+  ghcr.io/zerohiz/dbapi:2.2.5
 ```
 
 ### 方式二：Docker-compose 部署 (推荐)

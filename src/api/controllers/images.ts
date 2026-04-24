@@ -253,6 +253,129 @@ function detectRatio(width: number, height: number): string {
     return closest.ratio;
 }
 
+function createRetryGenerationEmpty(reason: string) {
+    return new APIException(EX.API_REQUEST_FAILED, `RETRY_GENERATION_EMPTY: ${reason}`);
+}
+
+function extractConversationId(raw: string) {
+    if (!raw) return "";
+    const match = raw.match(/\\?"conversation_id\\?":\\?"(\d+)\\?"/);
+    return match?.[1] || "";
+}
+
+function extractImageUrlsFromCreations(payload: any, emittedImageKeys: Set<string>) {
+    const imageUrls: string[] = [];
+    if (!payload || !Array.isArray(payload.creations)) {
+        return imageUrls;
+    }
+    payload.creations.forEach((creation: any) => {
+        const img = creation?.image || {};
+        const key = img?.key as string | undefined;
+        const finalUrl = img?.image_ori?.url || img?.image_preview?.url || img?.image_thumb?.url;
+        if (key && finalUrl && !emittedImageKeys.has(key)) {
+            emittedImageKeys.add(key);
+            imageUrls.push(finalUrl);
+        }
+    });
+    return imageUrls;
+}
+
+async function pollForImageResult(convId: string, context: AccountContext, timeoutMs: number = 180000): Promise<string[]> {
+    const defaultTimeout = AccountManager.getSettings().videoTimeout || 180000;
+    const finalTimeout = timeoutMs > 0 ? timeoutMs : defaultTimeout;
+    const startTime = Date.now();
+    const emittedImageKeys = new Set<string>();
+    let retryCount = 0;
+
+    while (Date.now() - startTime < finalTimeout) {
+        try {
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            const params = {
+                version_code: VERSION_CODE,
+                language: 'zh',
+                device_platform: 'web',
+                aid: DEFAULT_ASSISTANT_ID,
+                device_id: context.deviceId,
+                web_id: context.webId,
+                web_tab_id: util.uuid(),
+            };
+
+            const postData = {
+                cmd: 3100,
+                uplink_body: {
+                    pull_singe_chain_uplink_body: {
+                        conversation_id: convId,
+                        anchor_index: 9007199254740991,
+                        conversation_type: 3,
+                        direction: 1,
+                        limit: 20,
+                        ext: {
+                            pull_single_chain_scene: 'multi_device_red_dot_sync',
+                        },
+                        filter: {
+                            index_list: [],
+                        },
+                    },
+                },
+                sequence_id: util.uuid(),
+                channel: 2,
+                version: '1',
+            };
+
+            logger.info(`[轮询图片] 请求参数: convId=${convId}, cmd=3100`);
+            const response = await request("POST", "/im/chain/single", context, {
+                params,
+                data: postData,
+                headers: {
+                    "Content-Type": "application/json; encoding=utf-8"
+                }
+            });
+
+            if (response?.downlink_body?.pull_singe_chain_downlink_body) {
+                const messages = response.downlink_body.pull_singe_chain_downlink_body.messages || [];
+                logger.info(`[轮询图片] 获取到 ${messages.length} 条消息`);
+                const imageUrls: string[] = [];
+
+                for (const msg of messages) {
+                    let contentObj: any = null;
+                    if (typeof msg.content === 'string') {
+                        contentObj = _.attempt(() => JSON.parse(msg.content));
+                    } else {
+                        contentObj = msg.content;
+                    }
+                    if (_.isError(contentObj) || !contentObj) continue;
+
+                    const directUrls = extractImageUrlsFromCreations(contentObj, emittedImageKeys);
+                    if (directUrls.length > 0) {
+                        imageUrls.push(...directUrls);
+                    }
+
+                    const blocks = Array.isArray(contentObj) ? contentObj : (contentObj.content_block || []);
+                    for (const block of blocks) {
+                        if (block?.block_type !== 2074) continue;
+                        const blockUrls = extractImageUrlsFromCreations(block?.content?.creation_block, emittedImageKeys);
+                        if (blockUrls.length > 0) {
+                            imageUrls.push(...blockUrls);
+                        }
+                    }
+                }
+
+                if (imageUrls.length > 0) {
+                    logger.success(`轮询成功，获取到 ${imageUrls.length} 张图片`);
+                    return imageUrls;
+                }
+            }
+
+            logger.info(`[轮询图片] 第 ${++retryCount} 次尝试，暂无结果...`);
+        } catch (err) {
+            logger.error(`[轮询图片] 出错:`, err);
+        }
+    }
+
+    return [];
+}
+
 /**
  * 同步图片生成补全（对齐官方请求格式，新增extra字段）
  * @param imageParams 图片生成参数 {model, prompt, ratio, style, referenceImage, genModel?: string}
@@ -302,7 +425,6 @@ async function createImageCompletion(
                         logger.info(`参考图上传成功：${refImage.file_url.url}`);
                     }
                 }
-                // 如果未指定 ratio，从第一张图片的尺寸推断
                 if (!ratio && uploadResults.length > 0 && uploadResults[0]) {
                     const firstImage = uploadResults[0];
                     if (firstImage.width && firstImage.height) {
@@ -315,7 +437,7 @@ async function createImageCompletion(
                 throw new APIException(EX.API_REQUEST_FAILED, "参考图上传失败");
             }
         }
-        if (!ratio) ratio = "1:1"; // 最终默认值
+        if (!ratio) ratio = "1:1";
 
         const contentJson = JSON.stringify({
             text: `帮我生成图片：${prompt}\n风格：${style}\n比例：${ratio}`,
@@ -367,7 +489,6 @@ async function createImageCompletion(
         if (response.status !== 200) {
             let errorMsg = `HTTP ${response.status} ${response.statusText}`;
             if (response.data && response.data.on) {
-                // 如果是流，读取一点数据看是否有错误
                 const errData = await new Promise((resolve) => {
                     response.data.once("data", (chunk: Buffer) => resolve(chunk.toString()));
                     setTimeout(() => resolve("timeout"), 1000);
@@ -387,11 +508,23 @@ async function createImageCompletion(
 
         const streamStartTime = util.timestamp();
         const answer = await receiveStream(response.data);
-        logger.success(
-            `图片生成流传输完成 ${util.timestamp() - streamStartTime}ms`
-        );
+        if (!answer.id) {
+            logger.warn(`图片生成流提前结束，未获取到会话 ID，耗时 ${util.timestamp() - streamStartTime}ms`);
+            throw createRetryGenerationEmpty("会话 ID 为空，说明生成失败需重试");
+        }
 
-        // 记录用量
+        if (!Array.isArray(answer.choices[0].message.images) || answer.choices[0].message.images.length === 0) {
+            logger.warn(`图片生成流结束但未拿到图片，进入轮询补偿：convId=${answer.id}`);
+            const polledImages = await pollForImageResult(answer.id, context);
+            if (polledImages.length === 0) {
+                logger.warn(`图片轮询超时仍无结果：convId=${answer.id}`);
+                throw createRetryGenerationEmpty("会话 ID 已获取但未返回最终图片，轮询后仍无结果需重试");
+            }
+            answer.choices[0].message.images = polledImages;
+        }
+
+        logger.success(`图片生成完成 ${util.timestamp() - streamStartTime}ms，convId=${answer.id}，images=${answer.choices[0].message.images.length}`);
+
         const accountId = (account as any).id;
         if (accountId) {
             AccountManager.updateAccountUsage(accountId, 'image', 0, 0);
@@ -546,19 +679,22 @@ async function createImageCompletionStream(
         }
 
         const streamStartTime = util.timestamp();
-        return createTransStream(response.data, (convId: string) => {
-            logger.success(
-                `流式图片生成传输完成 ${util.timestamp() - streamStartTime}ms`
-            );
-            // 记录用量
-            const accountId = (account as any).id;
-            if (accountId) {
-                AccountManager.updateAccountUsage(accountId, 'image', 0, 0);
-                TokenCounter.recordUsage(accountId, 0, 0);
+        return createTransStream(response.data, context, ({ convId, imageCount, success, reason }) => {
+            if (success) {
+                logger.success(`流式图片生成完成 ${util.timestamp() - streamStartTime}ms，convId=${convId}，images=${imageCount}`);
+                const accountId = (account as any).id;
+                if (accountId) {
+                    AccountManager.updateAccountUsage(accountId, 'image', 0, 0);
+                    TokenCounter.recordUsage(accountId, 0, 0);
+                }
+                if (autoDelete) {
+                    removeConversation(convId, context).catch(
+                        (err) => console.error(err)
+                    );
+                }
+                return;
             }
-            removeConversation(convId, context).catch(
-                (err) => console.error(err)
-            );
+            logger.warn(`流式图片生成失败 ${util.timestamp() - streamStartTime}ms，convId=${convId || 'EMPTY'}，reason=${reason || 'unknown'}`);
         }, account, autoDelete);
     })().catch((err) => {
         logger.error(`流式图片生成响应错误: ${err.stack || String(err)}`);
@@ -1158,13 +1294,13 @@ async function receiveStream(stream: any): Promise<any> {
                 const result = _.attempt(() => JSON.parse(rawResult.event_data));
                 if (_.isError(result))
                     throw new Error(`Stream response invalid: ${rawResult.event_data}`);
+                if (!data.id && result.conversation_id)
+                    data.id = result.conversation_id;
                 if (result.is_finish) {
                     isEnd = true;
                     finalize();
                     return resolve(data);
                 }
-                if (!data.id && result.conversation_id)
-                    data.id = result.conversation_id;
                 const message = result.message;
                 if (!message || !message.content)
                     return;
@@ -1183,16 +1319,8 @@ async function receiveStream(stream: any): Promise<any> {
                 const ctype = message.content_type;
                 if (ctype === 2074) {
                     const payload = _.isError(parsed) ? _.attempt(() => JSON.parse(message.content)) : parsed;
-                    if (!_.isError(payload) && payload && Array.isArray(payload.creations)) {
-                        payload.creations.forEach((c: any) => {
-                            const img = c?.image || {};
-                            const key = img?.key as string | undefined;
-                            const ori = img?.image_ori?.url;
-                            if (key && ori && !emittedImageKeys.has(key)) {
-                                emittedImageKeys.add(key);
-                                imageUrls.push(ori);
-                            }
-                        });
+                    if (!_.isError(payload)) {
+                        imageUrls.push(...extractImageUrlsFromCreations(payload, emittedImageKeys));
                     }
                 }
             } catch (err) {
@@ -1201,7 +1329,12 @@ async function receiveStream(stream: any): Promise<any> {
             }
         });
         stream.on("data", (buffer) => {
-            if (buffer.toString().indexOf('�') !== -1) {
+            const bufferStr = buffer.toString();
+            if (!data.id) {
+                const extractedId = extractConversationId(bufferStr);
+                if (extractedId) data.id = extractedId;
+            }
+            if (bufferStr.indexOf('�') !== -1) {
                 temp = Buffer.concat([temp, buffer]);
                 return;
             }
@@ -1214,8 +1347,8 @@ async function receiveStream(stream: any): Promise<any> {
         stream.once("error", (err) => reject(err));
         stream.once("close", () => {
             finalize();
-            if (!data.id && !data.choices[0].message.content && imageUrls.length === 0) {
-                reject(new APIException(EX.API_REQUEST_FAILED, "RETRY_GENERATION_EMPTY: 会话 ID 为空且内容为空，说明生成识别需重试"));
+            if (!data.id) {
+                reject(createRetryGenerationEmpty("会话 ID 为空，说明生成失败需重试"));
                 return;
             }
             resolve(data);
@@ -1229,7 +1362,9 @@ async function receiveStream(stream: any): Promise<any> {
  * @param stream 消息流
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function, hasTools = false, account?: any, promptText = "", autoDelete = true) {
+type StreamImageEndCallback = (result: { convId: string; imageCount: number; success: boolean; reason?: string }) => void;
+
+function createTransStream(stream: any, context: AccountContext, endCallback?: StreamImageEndCallback, hasTools = false, account?: any, promptText = "", autoDelete = true) {
     let convId = "";
     let temp = Buffer.from('');
     const created = util.unixTimestamp();
@@ -1237,6 +1372,103 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
     const transStream = new PassThrough();
     let imageNoticeSent = false;
     let usageSent = false;
+    let finishing = false;
+    let pendingPoll: Promise<void> | null = null;
+
+    const finishSuccess = () => {
+        if (usageSent || transStream.closed) return;
+        transStream.write(`data: ${JSON.stringify({
+            id: convId,
+            model: MODEL_NAME,
+            object: "chat.completion.chunk",
+            choices: [
+                {
+                    index: 0,
+                    delta: {},
+                    finish_reason: "stop",
+                },
+            ],
+            usage: {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0
+            },
+            created,
+        })}\n\n`);
+        usageSent = true;
+        !transStream.closed && transStream.end("data: [DONE]\n\n");
+        endCallback && endCallback({ convId, imageCount: emittedImageKeys.size, success: true });
+    };
+
+    const finishFailure = (reason: string) => {
+        if (transStream.closed) return;
+        logger.warn(`[Image Stream] ${reason}`);
+        transStream.write(`data: ${JSON.stringify({
+            id: convId,
+            model: MODEL_NAME,
+            object: "chat.completion.chunk",
+            choices: [
+                {
+                    index: 0,
+                    delta: { role: "assistant", content: `\n[图片生成失败] ${reason}\n` },
+                    finish_reason: "stop",
+                },
+            ],
+            created,
+        })}\n\n`);
+        !transStream.closed && transStream.end("data: [DONE]\n\n");
+        endCallback && endCallback({ convId, imageCount: emittedImageKeys.size, success: false, reason });
+    };
+
+    const flushPolledImages = async () => {
+        if (finishing) return;
+        finishing = true;
+        if (!convId) {
+            finishFailure("会话 ID 为空，已终止并等待外层重试");
+            return;
+        }
+        if (emittedImageKeys.size > 0) {
+            finishSuccess();
+            return;
+        }
+        try {
+            logger.warn(`[Image Stream] 首段流未返回图片，进入轮询补偿：convId=${convId}`);
+            const polledImages = await pollForImageResult(convId, context);
+            if (polledImages.length === 0) {
+                finishFailure("已获取会话 ID，但轮询后仍未返回最终图片");
+                return;
+            }
+            polledImages.forEach((url, index) => {
+                const pseudoKey = `polled-${index}-${url}`;
+                if (emittedImageKeys.has(pseudoKey)) return;
+                emittedImageKeys.add(pseudoKey);
+                transStream.write(`data: ${JSON.stringify({
+                    id: convId,
+                    model: MODEL_NAME,
+                    object: "chat.completion.chunk",
+                    choices: [
+                        {
+                            index: 0,
+                            delta: { role: "assistant", content: `${url}\n` },
+                            finish_reason: null,
+                        },
+                    ],
+                    created,
+                })}\n\n`);
+            });
+            finishSuccess();
+        } catch (err: any) {
+            finishFailure(err?.message || "轮询图片失败");
+        }
+    };
+
+    const scheduleFinalize = () => {
+        if (pendingPoll) return;
+        pendingPoll = flushPolledImages().finally(() => {
+            pendingPoll = null;
+        });
+    };
+
     !transStream.closed &&
     transStream.write(
         `data: ${JSON.stringify({
@@ -1256,28 +1488,13 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
     const parser = createParser((event) => {
         try {
             if (event.type !== "event") return;
-            // 解析JSON
             const rawResult = _.attempt(() => JSON.parse(event.data));
             if (_.isError(rawResult))
                 throw new Error(`Stream response invalid: ${event.data}`);
             if (rawResult.code)
                 throw new APIException(EX.API_REQUEST_FAILED, `[请求doubao失败]: ${rawResult.code}-${rawResult.message}`);
             if (rawResult.event_type == 2003) {
-                transStream.write(`data: ${JSON.stringify({
-                    id: convId,
-                    model: MODEL_NAME,
-                    object: "chat.completion.chunk",
-                    choices: [
-                        {
-                            index: 0,
-                            delta: {role: "assistant", content: ""},
-                            finish_reason: "stop"
-                        },
-                    ],
-                    created,
-                })}\n\n`);
-                !transStream.closed && transStream.end("data: [DONE]\n\n");
-                endCallback && endCallback(convId);
+                scheduleFinalize();
                 return;
             }
             if (rawResult.event_type != 2001) {
@@ -1289,31 +1506,14 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
             if (!convId)
                 convId = result.conversation_id;
             if (result.is_finish) {
-                transStream.write(`data: ${JSON.stringify({
-                    id: convId,
-                    model: MODEL_NAME,
-                    object: "chat.completion.chunk",
-                    choices: [
-                        {
-                            index: 0,
-                            delta: {role: "assistant", content: ""},
-                            finish_reason: "stop"
-                        },
-                    ],
-                    created,
-                })}\n\n`);
-                !transStream.closed && transStream.end("data: [DONE]\n\n");
-                endCallback && endCallback(convId);
+                scheduleFinalize();
                 return;
             }
             const message = result.message;
             if (!message || !message.content)
                 return;
 
-            // 统一解析 content
             const content = _.attempt(() => JSON.parse(message.content));
-
-            // 图片生成事件（content_type = 2074）
             const ctype = message.content_type;
             if (ctype === 2074 && !_.isError(content)) {
                 const creations = Array.isArray((content as any).creations) ? (content as any).creations : [];
@@ -1385,11 +1585,16 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
             }
         } catch (err) {
             logger.error(err);
-            !transStream.closed && transStream.end("\n\n");
+            finishFailure(err instanceof Error ? err.message : String(err));
         }
     });
     stream.on("data", (buffer) => {
-        if (buffer.toString().indexOf('�') != -1) {
+        const bufferStr = buffer.toString();
+        if (!convId) {
+            const extractedId = extractConversationId(bufferStr);
+            if (extractedId) convId = extractedId;
+        }
+        if (bufferStr.indexOf('�') != -1) {
             temp = Buffer.concat([temp, buffer]);
             return;
         }
@@ -1399,45 +1604,11 @@ function createTransStream(stream: any, endCallback?: Function, hasTools = false
         }
         parser.feed(buffer.toString());
     });
-    stream.once(
-        "error",
-        () => !transStream.closed && transStream.end("data: [DONE]\n\n")
-    );
-    stream.once(
-        "close",
-        () => {
-            if (!usageSent && !transStream.closed) {
-                transStream.write(`data: ${JSON.stringify({
-                    id: convId,
-                    model: MODEL_NAME,
-                    object: "chat.completion.chunk",
-                    choices: [
-                        {
-                            index: 0,
-                            delta: {},
-                            finish_reason: "stop",
-                        },
-                    ],
-                    usage: {
-                        prompt_tokens: 0,
-                        completion_tokens: 0,
-                        total_tokens: 0
-                    },
-                    created,
-                })}\n\n`);
-                usageSent = true;
-            }
-            !transStream.closed && transStream.end("data: [DONE]\n\n");
-        }
-    );
+    stream.once("error", () => scheduleFinalize());
+    stream.once("close", () => scheduleFinalize());
     return transStream;
 }
 
-/**
- * Token切分
- *
- * @param authorization 认证字符串
- */
 function tokenSplit(authorization: string) {
     return authorization.replace("Bearer ", "").split(",");
 }

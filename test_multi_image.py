@@ -1,186 +1,163 @@
-import requests
+#!/usr/bin/env python3
 import base64
+import json
+import mimetypes
 import os
 import time
-import json
+import urllib.error
+import urllib.request
+import tkinter as tk
+from tkinter import filedialog
 
-# API 配置
-BASE_URL = "http://127.0.0.1:5566/v1"
-HEADERS = {
-    "Authorization": "Bearer pooled",
-    "Content-Type": "application/json"
-}
+DEFAULT_URL = "http://127.0.0.1:5566/v1/images/generations"
+DEFAULT_MODEL = "doubao"
+DEFAULT_PROMPT = "把多张参考图融合成一张高质量海报，保留主体特征与颜色风格"
+DEFAULT_STYLE = "auto"
+DEFAULT_RATIO = "1:1"
 
-def encode_image(image_path):
-    """处理图片：如果是本地路径则转换为 Base64，如果是 URL 则直接返回"""
-    if image_path.startswith(('http://', 'https://')):
-        return image_path
-    
-    if not os.path.exists(image_path):
-        print(f"❌ 错误：找不到文件 {image_path}")
-        return None
-        
-    with open(image_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-        if image_path.lower().endswith('.png'):
-            mime = "image/png"
-        elif image_path.lower().endswith('.jpg') or image_path.lower().endswith('.jpeg'):
-            mime = "image/jpeg"
-        elif image_path.lower().endswith('.webp'):
-            mime = "image/webp"
-        else:
-            mime = "image/octet-stream"
-        return f"data:{mime};base64,{encoded_string}"
 
-def mask_base64(obj):
-    """递归掩码对象中的 Base64 字符串"""
-    if isinstance(obj, str) and (obj.startswith("data:") or len(obj) > 100):
-        if "base64," in obj:
-            prefix, _ = obj.split("base64,", 1)
-            return f"{prefix}base64,[OMITTED,len={len(obj)}]"
-        return f"[OMITTED_STRING,len={len(obj)}]"
-    elif isinstance(obj, dict):
-        return {k: mask_base64(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [mask_base64(i) for i in obj]
-    return obj
+def ask(text: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    value = input(f"{text}{suffix}: ").strip()
+    return value or default
 
-def print_request(url, payload):
-    """打印请求信息（掩码 Base64）"""
-    print("\n📤 发送请求:")
-    print(f"URL: {url}")
-    masked_payload = mask_base64(payload)
-    print("Payload:")
-    print(json.dumps(masked_payload, indent=2, ensure_ascii=False))
 
-def print_response(response):
-    """统一打印响应逻辑"""
-    try:
-        data = response.json()
-        if response.status_code == 200:
-            print("✅ 响应成功:")
-            print(json.dumps(data, indent=2, ensure_ascii=False))
-            # 尝试提取图片链接
-            if "choices" in data:
-                message = data["choices"][0]["message"]
-                if "images" in message:
-                    print(f"🎨 生成的图片: {message['images']}")
-                if "videos" in message:
-                    print(f"🎬 生成的视频: {message['videos']}")
-        else:
-            print(f"❌ 响应失败 (HTTP {response.status_code}):")
-            print(json.dumps(data, indent=2, ensure_ascii=False))
-
-    except Exception as e:
-        print(f"⚠️ 无法解析响应 JSON: {e}")
-        print(response.text)
-
-def test_multi_image_chat():
-    print("\n--- 🧪 测试：多图对话 (Multi-Image Chat) ---")
-    print("请输入图片路径或 URL (多个请用逗号分隔):")
-    paths_str = input("> ").strip()
-    if not paths_str: return
-    
-    paths = [p.strip().strip('"').strip("'") for p in paths_str.split(',')]
-    images = []
-    for p in paths:
-        img_data = encode_image(p)
-        if img_data:
-            images.append(img_data)
-            
-    if not images:
-        print("❌ 未提供有效的图片")
-        return
-
-    prompt = input("请输入对话提示词 (默认: 描述一下这些图片有什么共同点?): ") or "描述一下这些图片有什么共同点?"
-
-    # 构建 OpenAI 格式的多模态内容
-    content = [{"type": "text", "text": prompt}]
-    for img in images:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": img}
-        })
-
-    payload = {
-        "model": "doubao",
-        "messages": [
-            {
-                "role": "user",
-                "content": content
-            }
+def choose_images() -> list[str]:
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    file_paths = filedialog.askopenfilenames(
+        title="请选择 2 到 6 张图片",
+        filetypes=[
+            ("图片文件", "*.jpg *.jpeg *.png *.webp *.gif *.bmp"),
+            ("所有文件", "*.*"),
         ],
-        "stream": False
-    }
+    )
+    root.destroy()
+    return list(file_paths)
 
-    try:
-        url = f"{BASE_URL}/chat/completions"
-        print_request(url, payload)
-        print(f"⏳ 正在请求中 (包含 {len(images)} 张图片)...")
-        response = requests.post(url, headers=HEADERS, json=payload)
-        response.raise_for_status()
-        print_response(response)
-    except Exception as e:
-        print(f"❌ 请求失败: {e}")
-        if 'response' in locals(): print(response.text)
 
-def test_multi_image_i2i():
-    print("\n--- 🧪 测试：图生图多图模式 (Multi-Image Image-to-Image) ---")
-    print("请输入参考图路径或 URL (多个请用逗号分隔):")
-    paths_str = input("> ").strip()
-    if not paths_str: return
-    
-    paths = [p.strip().strip('"').strip("'") for p in paths_str.split(',')]
-    images = []
-    for p in paths:
-        img_data = encode_image(p)
-        if img_data:
-            images.append(img_data)
-            
-    if not images:
-        print("❌ 未提供有效的图片")
-        return
+def to_data_url(value: str) -> str:
+    if value.startswith("http://") or value.startswith("https://") or value.startswith("data:"):
+        return value
+    if not os.path.isfile(value):
+        raise FileNotFoundError(f"图片文件不存在: {value}")
+    mime_type, _ = mimetypes.guess_type(value)
+    mime_type = mime_type or "application/octet-stream"
+    with open(value, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:{mime_type};base64,{encoded}"
 
-    prompt = input("请输入修改提示词 (默认: 融合这几张图片的风格): ") or "融合这几张图片的风格"
 
-    payload = {
-        "model": "Seedream 5.0 Lite",
-        "prompt": prompt,
-        "image": images, # 传列表即为多图模式
-        "stream": False
-    }
+def post_json(url: str, token: str, payload: dict, timeout: int):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+        method="POST",
+    )
+    return urllib.request.urlopen(req, timeout=timeout)
 
-    try:
-        url = f"{BASE_URL}/images/generations"
-        print_request(url, payload)
-        print(f"⏳ 正在请求中 (包含 {len(images)} 张参考图)...")
-        response = requests.post(url, headers=HEADERS, json=payload)
-        response.raise_for_status()
-        print_response(response)
-    except Exception as e:
-        print(f"❌ 请求失败: {e}")
-        if 'response' in locals(): print(response.text)
+
+def run_non_stream(url: str, token: str, payload: dict, timeout: int):
+    start = time.time()
+    with post_json(url, token, payload, timeout) as resp:
+        body = resp.read().decode("utf-8", errors="replace")
+        elapsed = int((time.time() - start) * 1000)
+        print(f"\nHTTP {resp.status} in {elapsed}ms\n")
+        try:
+            parsed = json.loads(body)
+        except json.JSONDecodeError:
+            print(body)
+            return
+
+        print(json.dumps(parsed, ensure_ascii=False, indent=2))
+        conv_id = parsed.get("id")
+        images = []
+        try:
+            images = parsed["choices"][0]["message"].get("images", [])
+        except Exception:
+            pass
+        print(f"\n结果摘要: id={conv_id!r}, 图片数量={len(images)}")
+
+
+def run_stream(url: str, token: str, payload: dict, timeout: int):
+    start = time.time()
+    with post_json(url, token, payload, timeout) as resp:
+        print(f"\nHTTP {resp.status} (stream)\n")
+        for raw in resp:
+            line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+            if not line:
+                continue
+            print(line)
+            if line == "data: [DONE]":
+                break
+        elapsed = int((time.time() - start) * 1000)
+        print(f"\n流式输出结束，总耗时 {elapsed}ms")
+
 
 def main():
-    while True:
-        print("\n==========================")
-        print("Doubao API 多图功能测试")
-        print("==========================")
-        print("1. 多图对话 (Chat with Multi-Images)")
-        print("2. 图生图多图模式 (Multi-Image I2I)")
-        print("3. 退出")
-        
-        choice = input("\n请选择功能 (1-3): ")
-        
-        if choice == '1':
-            test_multi_image_chat()
-        elif choice == '2':
-            test_multi_image_i2i()
-        elif choice == '3':
-            print("👋 再见")
-            break
+    print("多图片生成测试")
+    print("先填几个参数，然后会弹出文件选择窗口。\n")
+
+    url = ask("接口地址", DEFAULT_URL)
+    token = ask("Token（可填 pooled）", "pooled")
+    prompt = ask("提示词", DEFAULT_PROMPT)
+    style = ask("风格", DEFAULT_STYLE)
+    ratio = ask("比例", DEFAULT_RATIO)
+    stream = ask("是否流式？(y/n)", "n").lower() == "y"
+
+    print("\n现在会弹出图片选择窗口，请一次选中 2 到 6 张图片。")
+    image_paths = choose_images()
+    if len(image_paths) < 2:
+        print("\n至少要选 2 张图片。")
+        input("\n按回车退出...")
+        return
+    if len(image_paths) > 6:
+        image_paths = image_paths[:6]
+        print("\n你选了超过 6 张，已自动只取前 6 张。")
+
+    payload = {
+        "model": DEFAULT_MODEL,
+        "prompt": prompt,
+        "style": style,
+        "ratio": ratio,
+        "stream": stream,
+        "auto_delete": False,
+        "image": [to_data_url(path) for path in image_paths],
+    }
+
+    print("\n已选择文件：")
+    for idx, path in enumerate(image_paths, start=1):
+        print(f"{idx}. {path}")
+
+    print("\n将发送请求：")
+    print(json.dumps({
+        "model": payload["model"],
+        "prompt": payload["prompt"],
+        "style": payload["style"],
+        "ratio": payload["ratio"],
+        "stream": payload["stream"],
+        "image_count": len(payload["image"]),
+    }, ensure_ascii=False, indent=2))
+
+    try:
+        if stream:
+            run_stream(url, token, payload, 600)
         else:
-            print("❌ 无效选择")
+            run_non_stream(url, token, payload, 600)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"\nHTTPError {e.code}: {body}")
+    except Exception as e:
+        print(f"\n请求失败: {e}")
+
+    input("\n按回车退出...")
+
 
 if __name__ == "__main__":
     main()
