@@ -10,10 +10,21 @@ import tkinter as tk
 from tkinter import filedialog
 
 DEFAULT_URL = "http://127.0.0.1:5566/v1/images/generations"
-DEFAULT_MODEL = "doubao"
-DEFAULT_PROMPT = "把多张参考图融合成一张高质量海报，保留主体特征与颜色风格"
-DEFAULT_STYLE = "auto"
-DEFAULT_RATIO = "1:1"
+# DEFAULT_URL = "http://192.168.110.30:7000/v1/images/generations"
+# DEFAULT_MODEL = "Seedream 4.5"
+DEFAULT_MODEL = "Seedream 5.0 Lite"
+DEFAULT_PROMPT = """识别以上图片原有实景与全部现有物体，严格保留原本场地、建筑、环境、食物、所有实物元素。**画面必须是空无一人的纯净风光场景，绝对禁止出现任何人物、游客或脸孔。**禁止添加任何原图不存在的物品、建筑、装饰、杂物，不篡改场景结构。
+【核心要求：强制打破原构图，进行剧烈环绕位移】
+**无论原图原本处于什么视角，机位都必须强制进行大跨度的“环绕式位移”。**必须绕着主体向左前方大幅度平移，并结合极具张力的高低角度变化（如建筑的大透视低角仰拍，或食物/静物的贴近桌面平视及微距特写）。
+必须展示出原图视角中完全看不到的另一个侧面。构图必须发生剧烈的破坏与重组，主体的立体感、体积感被极度放大，透视关系必须与原图截然不同（绝对禁止出现与原图相似的构图比例和角度）。
+【光影与氛围调整】
+**允许根据全新的仰拍视角，适当重构和优化光影效果。**可以调整光线方向，强化明暗对比、增加自然的体积光或环境漫反射，以更好地凸显建筑的几何张力与空间层次。允许对曝光和色彩氛围进行适度美化，使画面更具高级摄影质感，但需符合真实物理规律，保持整体高清写实的风格，避免过度浮夸的失真滤镜感。
+**画面干净，绝对禁止出现任何文字、水印、logo。**整体呈现写实高清画质，仅做拍摄机位的剧烈物理空间转换及合理的光影美化。
+注：所有生成的图片都需要进行机位的剧烈移动，只要有1张没有移动全部都不合格
+我上传几张就生成几张"""
+DEFAULT_STYLE = "通用"
+DEFAULT_RATIO =""
+
 
 
 def ask(text: str, default: str = "") -> str:
@@ -27,7 +38,7 @@ def choose_images() -> list[str]:
     root.withdraw()
     root.attributes("-topmost", True)
     file_paths = filedialog.askopenfilenames(
-        title="请选择 2 到 6 张图片",
+        title="请选择 2 到 6 张参考图（图生图）",
         filetypes=[
             ("图片文件", "*.jpg *.jpeg *.png *.webp *.gif *.bmp"),
             ("所有文件", "*.*"),
@@ -101,17 +112,18 @@ def run_stream(url: str, token: str, payload: dict, timeout: int):
 
 
 def main():
-    print("多图片生成测试")
-    print("先填几个参数，然后会弹出文件选择窗口。\n")
+    print("多图图生图测试 /v1/images/generations")
+    print("这是图片生成接口，不是聊天接口。会把多张参考图作为 image 数组发送。\n")
 
     url = ask("接口地址", DEFAULT_URL)
     token = ask("Token（可填 pooled）", "pooled")
-    prompt = ask("提示词", DEFAULT_PROMPT)
+    model = ask("图片模型", DEFAULT_MODEL)
+    prompt = ask("图生图提示词", DEFAULT_PROMPT)
     style = ask("风格", DEFAULT_STYLE)
     ratio = ask("比例", DEFAULT_RATIO)
     stream = ask("是否流式？(y/n)", "n").lower() == "y"
 
-    print("\n现在会弹出图片选择窗口，请一次选中 2 到 6 张图片。")
+    print("\n现在会弹出图片选择窗口，请一次选中 2 到 6 张参考图。")
     image_paths = choose_images()
     if len(image_paths) < 2:
         print("\n至少要选 2 张图片。")
@@ -122,7 +134,7 @@ def main():
         print("\n你选了超过 6 张，已自动只取前 6 张。")
 
     payload = {
-        "model": DEFAULT_MODEL,
+        "model": model,
         "prompt": prompt,
         "style": style,
         "ratio": ratio,
@@ -135,14 +147,16 @@ def main():
     for idx, path in enumerate(image_paths, start=1):
         print(f"{idx}. {path}")
 
-    print("\n将发送请求：")
+    print("\n将发送图生图请求：")
     print(json.dumps({
+        "url": url,
         "model": payload["model"],
         "prompt": payload["prompt"],
         "style": payload["style"],
         "ratio": payload["ratio"],
         "stream": payload["stream"],
         "image_count": len(payload["image"]),
+        "payload_field": "image[]",
     }, ensure_ascii=False, indent=2))
 
     try:

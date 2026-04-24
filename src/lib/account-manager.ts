@@ -92,6 +92,7 @@ export interface Settings {
   defaultModel: string;
   enableHealthCheck?: boolean; // 新增：是否开启全局健康检查
   videoTimeout?: number; // 毫秒
+  imageGenerationDelayMs?: number; // 毫秒
 }
 
 export type RequestType = "chat" | "image" | "video";
@@ -102,7 +103,8 @@ class AccountManager extends EventEmitter {
   private settings: Settings = {
     cooldownTime: 10000,
     defaultModel: "doubao-lite-4k",
-    videoTimeout: 180000
+    videoTimeout: 180000,
+    imageGenerationDelayMs: 3000
   };
 
   

@@ -257,6 +257,32 @@ function createRetryGenerationEmpty(reason: string) {
     return new APIException(EX.API_REQUEST_FAILED, `RETRY_GENERATION_EMPTY: ${reason}`);
 }
 
+function isReasonableImageDimension(value: number) {
+    return Number.isInteger(value) && value > 0 && value <= 20000;
+}
+
+function normalizeImageSize(width?: number, height?: number): { width: number; height: number } | null {
+    if (!isReasonableImageDimension(width || 0) || !isReasonableImageDimension(height || 0)) {
+        return null;
+    }
+    return { width: width as number, height: height as number };
+}
+
+function getConfiguredImageGenerationDelayMs() {
+    const rawDelay = AccountManager.getSettings().imageGenerationDelayMs;
+    const delayMs = Number.isFinite(rawDelay) ? Number(rawDelay) : 0;
+    return Math.max(0, delayMs);
+}
+
+async function waitBeforeImageGenerationIfNeeded() {
+    const delayMs = getConfiguredImageGenerationDelayMs();
+    if (delayMs <= 0) {
+        return;
+    }
+    logger.info(`参考图已就绪，等待 ${delayMs}ms 后再发起图片生成`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
 function extractConversationId(raw: string) {
     if (!raw) return "";
     const match = raw.match(/\\?"conversation_id\\?":\\?"(\d+)\\?"/);
@@ -427,9 +453,12 @@ async function createImageCompletion(
                 }
                 if (!ratio && uploadResults.length > 0 && uploadResults[0]) {
                     const firstImage = uploadResults[0];
-                    if (firstImage.width && firstImage.height) {
-                        ratio = detectRatio(firstImage.width, firstImage.height);
-                        logger.info(`根据参考图尺寸自动设置比例: ${ratio} (${firstImage.width}x${firstImage.height})`);
+                    const size = normalizeImageSize(firstImage.width, firstImage.height);
+                    if (size) {
+                        ratio = detectRatio(size.width, size.height);
+                        logger.info(`根据参考图尺寸自动设置比例: ${ratio} (${size.width}x${size.height})`);
+                    } else {
+                        logger.warn(`参考图尺寸异常，跳过自动比例推断: ${firstImage.width}x${firstImage.height}`);
                     }
                 }
             } catch (err: any) {
@@ -438,6 +467,10 @@ async function createImageCompletion(
             }
         }
         if (!ratio) ratio = "1:1";
+
+        if (attachments.length > 0) {
+            await waitBeforeImageGenerationIfNeeded();
+        }
 
         const contentJson = JSON.stringify({
             text: `帮我生成图片：${prompt}\n风格：${style}\n比例：${ratio}`,
@@ -592,12 +625,14 @@ async function createImageCompletionStream(
                         logger.info(`参考图上传成功：${refImage.file_url.url}`);
                     }
                 }
-                // 如果未指定 ratio，从第一张图片的尺寸推断
                 if (!ratio && uploadResults.length > 0 && uploadResults[0]) {
                     const firstImage = uploadResults[0];
-                    if (firstImage.width && firstImage.height) {
-                        ratio = detectRatio(firstImage.width, firstImage.height);
-                        logger.info(`根据参考图尺寸自动设置比例: ${ratio} (${firstImage.width}x${firstImage.height})`);
+                    const size = normalizeImageSize(firstImage.width, firstImage.height);
+                    if (size) {
+                        ratio = detectRatio(size.width, size.height);
+                        logger.info(`根据参考图尺寸自动设置比例: ${ratio} (${size.width}x${size.height})`);
+                    } else {
+                        logger.warn(`参考图尺寸异常，跳过自动比例推断: ${firstImage.width}x${firstImage.height}`);
                     }
                 }
             } catch (err: any) {
@@ -606,6 +641,10 @@ async function createImageCompletionStream(
             }
         }
         if (!ratio) ratio = "1:1"; // 最终默认值
+
+        if (attachments.length > 0) {
+            await waitBeforeImageGenerationIfNeeded();
+        }
 
         const imageMessage = [
             {
@@ -984,9 +1023,8 @@ function sniffImageSize(buf: Buffer, mimeType?: string): { width: number; height
         // PNG
         if ((mimeType && /png/i.test(mimeType)) || (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47)) {
             if (buf.length >= 24) {
-                const width = buf.readUInt32BE(16);
-                const height = buf.readUInt32BE(20);
-                if (width > 0 && height > 0) return {width, height};
+                const size = normalizeImageSize(buf.readUInt32BE(16), buf.readUInt32BE(20));
+                if (size) return size;
             }
         }
         // JPEG
@@ -1001,9 +1039,8 @@ function sniffImageSize(buf: Buffer, mimeType?: string): { width: number; height
                 const len = buf.readUInt16BE(i + 2);
                 if ([0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF].includes(marker)) {
                     if (i + 9 <= buf.length) {
-                        const height = buf.readUInt16BE(i + 5);
-                        const width = buf.readUInt16BE(i + 7);
-                        if (width > 0 && height > 0) return {width, height};
+                        const size = normalizeImageSize(buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5));
+                        if (size) return size;
                     }
                     break;
                 }
@@ -1019,9 +1056,8 @@ function sniffImageSize(buf: Buffer, mimeType?: string): { width: number; height
                 if (chunk === "VP8X" && p + 18 <= buf.length) {
                     const wMinus1 = (buf[p + 12] | (buf[p + 13] << 8) | (buf[p + 14] << 16)) >>> 0;
                     const hMinus1 = (buf[p + 15] | (buf[p + 16] << 8) | (buf[p + 17] << 16)) >>> 0;
-                    const width = wMinus1 + 1;
-                    const height = hMinus1 + 1;
-                    if (width > 0 && height > 0) return {width, height};
+                    const size = normalizeImageSize(wMinus1 + 1, hMinus1 + 1);
+                    if (size) return size;
                 }
                 p += 8 + size + (size % 2);
             }

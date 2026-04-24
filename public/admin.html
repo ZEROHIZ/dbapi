@@ -423,6 +423,14 @@
                             </div>
                             <p class="text-[10px] text-slate-500">同步生成视频时的最大轮询等待时间（建议 300-600）。</p>
                         </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">图片生成前等待 (秒)</label>
+                            <div class="relative">
+                                <input :value="Math.floor((settings.imageGenerationDelayMs || 0) / 1000)" @input="settings.imageGenerationDelayMs = Math.max(0, Number($event.target.value || 0) * 1000)" type="number" class="input-field">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase">秒</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500">多图参考图上传完成后，等待资源稳定再发起生图，建议先试 3-8 秒。</p>
+                        </div>
                         <div class="col-span-full pt-4 border-t border-slate-100 dark:border-slate-800">
                             <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl">
                                 <div>
@@ -921,7 +929,7 @@
                 });
                 const accounts = ref([]);
                 const models = ref([]);
-                const settings = ref({ cooldownTime: 10000, defaultModel: 'doubao' });
+                const settings = ref({ cooldownTime: 10000, defaultModel: 'doubao', videoTimeout: 180000, imageGenerationDelayMs: 3000 });
                 const policies = ref([]);
                 const storagePercent = computed(() => {
                     const total = stats.value.totalAccounts || 0;
