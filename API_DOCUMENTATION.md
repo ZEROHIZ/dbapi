@@ -1,4 +1,4 @@
-docker run -d --init --name doubao-free-api123 -p 7000:8000 -e ADMIN_PASSWORD=123456 -e SERVER_PORT=8000 -e TZ=Asia/Shanghai -v "${PWD}/data:/app/data" -v "${PWD}/logs:/app/logs" --restart always ghcr.io/zerohiz/dbapi:2.3
+docker run -d --init --name doubao-free-api123 -p 7000:8000 -e ADMIN_PASSWORD=123456 -e SERVER_PORT=8000 -e TZ=Asia/Shanghai -v "${PWD}/data:/app/data" -v "${PWD}/logs:/app/logs" --restart always ghcr.io/zerohiz/dbapi:2.4
 # API 接口文档
 
 本文档详细说明了对话、绘图、视频生成接口的请求与返回格式。
@@ -266,7 +266,195 @@ Authorization: Bearer pooled
 
 ---
 
-## 4. 获取可用模型 (List Models)
+## 4. 异步图片/视频生成与本地保存
+
+异步接口会立即返回任务 ID，服务端在后台调用原有图片/视频生成逻辑。生成成功后会自动下载结果文件到本地：
+
+- 图片：`data/media/images/`
+- 视频：`data/media/videos/`
+- 任务记录：`data/media/tasks.json`
+
+原有同步和流式接口保持不变。
+
+### 4.1 异步图片生成
+
+**接口地址**: `POST /v1/images/generations/async`
+
+**请求参数**与 `POST /v1/images/generations` 基本一致，`stream` 会被服务端强制按 `false` 处理。
+
+**请求示例**:
+```json
+{
+  "model": "Seedream 4.0",
+  "prompt": "一张未来城市夜景，电影感，高细节",
+  "ratio": "16:9",
+  "style": "auto",
+  "auto_delete": true
+}
+```
+
+**多图参考请求示例**:
+```json
+{
+    "prompt": "参考多张图片的主体和氛围生成视频，镜头缓慢推进",
+    "image": [
+        "https://example.com/start_frame_1.jpg",
+        "https://example.com/start_frame_2.jpg"
+    ],
+    "ratio": "16:9",
+    "stream": false
+}
+```
+
+`image` 支持单个字符串或字符串数组，字符串可为 URL 或 Base64 Data URL。
+
+**响应示例**:
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "task_id": "media-1763985200000-a1b2c3d4",
+    "status": "queued",
+    "query_url": "/v1/generations/tasks/media-1763985200000-a1b2c3d4"
+  }
+}
+```
+
+**异步图生图（单图参考）**:
+```json
+{
+  "model": "Seedream 4.0",
+  "prompt": "把这张图改成写实电影海报风格，保留主体结构",
+  "image": "https://example.com/original.jpg",
+  "ratio": "1:1",
+  "style": "auto",
+  "auto_delete": true
+}
+```
+
+**异步图生图（多图参考）**:
+```json
+{
+  "model": "Seedream 4.0",
+  "prompt": "融合两张参考图的主体与色彩，生成一张统一风格的新图",
+  "image": [
+    "https://example.com/reference-1.jpg",
+    "https://example.com/reference-2.jpg"
+  ],
+  "ratio": "16:9",
+  "style": "auto",
+  "auto_delete": true
+}
+```
+
+`image` 支持 URL、Base64 Data URL；多图时传字符串数组。
+
+### 4.2 异步视频生成
+
+**接口地址**: `POST /v1/video/generations/async`
+
+**请求参数**与 `POST /v1/video/generations` 基本一致，`stream` 会被服务端强制按 `false` 处理。
+
+**请求示例**:
+```json
+{
+  "model": "doubao-video",
+  "prompt": "海浪拍打沙滩，夕阳西下，镜头缓慢推进",
+  "ratio": "16:9",
+  "auto_delete": false
+}
+```
+
+**异步图生视频（图片参考模式）**:
+```json
+{
+  "model": "doubao-video",
+  "prompt": "让画面动起来，镜头缓慢推进，主体保持清晰",
+  "image": "https://example.com/start-frame.jpg",
+  "ratio": "16:9",
+  "auto_delete": false
+}
+```
+
+**异步图生视频（多图参考模式）**:
+```json
+{
+  "model": "doubao-video",
+  "prompt": "参考多张图片的主体和氛围生成视频，镜头缓慢推进",
+  "image": [
+    "https://example.com/start-frame-1.jpg",
+    "https://example.com/start-frame-2.jpg"
+  ],
+  "ratio": "16:9",
+  "auto_delete": false
+}
+```
+
+视频的 `image` 支持单个字符串或字符串数组，字符串可为 URL 或 Base64 Data URL。
+
+**响应示例**:
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "task_id": "media-1763985200000-v9x8y7z6",
+    "status": "queued",
+    "query_url": "/v1/generations/tasks/media-1763985200000-v9x8y7z6"
+  }
+}
+```
+
+### 4.3 查询异步任务
+
+**接口地址**: `GET /v1/generations/tasks/{task_id}`
+
+**状态说明**:
+- `queued`: 已创建，等待后台执行
+- `running`: 正在生成或下载本地文件
+- `succeeded`: 已完成
+- `failed`: 失败，查看 `error`
+
+**响应示例**:
+```json
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "id": "media-1763985200000-a1b2c3d4",
+    "type": "image",
+    "status": "succeeded",
+    "media": [
+      {
+        "type": "image",
+        "source_url": "https://p3-flow-imagex-sign/1.jpg",
+        "local_path": "data/media/images/media-1763985200000-a1b2c3d4-1.jpg",
+        "filename": "media-1763985200000-a1b2c3d4-1.jpg",
+        "size": 123456,
+        "mime_type": "image/jpeg"
+      }
+    ],
+    "created_at": "2026-04-27T10:00:00.000Z",
+    "started_at": "2026-04-27T10:00:01.000Z",
+    "completed_at": "2026-04-27T10:01:30.000Z"
+  }
+}
+```
+
+### 4.4 清理本地媒体文件
+
+后台 Web 端“危险区域”新增“清理本地媒体文件”按钮，也可以直接调用管理接口。
+
+**接口地址**: `POST /admin/media/clear`
+
+**鉴权**: 需要 `Authorization: Bearer [ADMIN_PASSWORD]`
+
+**说明**: 删除 `data/media/images/`、`data/media/videos/` 下的文件，并清空 `data/media/tasks.json` 任务记录。
+
+---
+
+## 5. 获取可用模型 (List Models)
 
 获取当前系统中所有可用的模型列表，包括文本、视频以及图片生成的具体版本。
 
@@ -292,7 +480,7 @@ Authorization: Bearer pooled
 
 ---
 
-## 5. Session 状态检查 (Token Check)
+## 6. Session 状态检查 (Token Check)
 
 检查指定的 SessionID (Token) 是否仍然存活（有效）。
 
@@ -317,17 +505,17 @@ Authorization: Bearer pooled
 
 ---
 
-## 6. 工具与管理 (Utilities)
+## 7. 工具与管理 (Utilities)
 
-### 6.1 健康检查 (Ping)
+### 7.1 健康检查 (Ping)
 - **地址**: `GET /ping`
 - **响应**: `"pong"`
 
-### 6.2 版本查询
+### 7.2 版本查询
 - **地址**: `GET /admin/version`
 - **响应**: `{"version": "2.2"}`
 
-### 6.3 远程重启 (Restart)
+### 7.3 远程重启 (Restart)
 - **地址**: `POST /admin/restart`
 - **说明**: 远程强制重启服务进程。此操作会延迟 1 秒后执行 `process.exit(0)`，需配合 Docker 的 `--restart always` 或 PM2 等进程守护工具使用。
 - **鉴权**: 需在 Header 中设置 `Authorization: Bearer [ADMIN_PASSWORD]`。
@@ -347,7 +535,7 @@ Authorization: Bearer your_admin_password
 
 ---
 
-## 7. 错误处理 (Error Handling)
+## 8. 错误处理 (Error Handling)
 
 当接口返回非 200 状态码时，会返回统一的错误 JSON 格式。
 

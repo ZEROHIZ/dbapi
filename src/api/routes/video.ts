@@ -13,7 +13,7 @@ interface VideoCompletionRequestBody {
     prompt: string;
     ratio?: string;
     model?: string;
-    image?: string;
+    image?: string | string[];
     stream: boolean;
     auto_delete?: boolean;
 }
@@ -31,7 +31,7 @@ export default {
                 .validate('body.prompt', _.isString)
                 .validate('body.ratio', (v) => _.isUndefined(v) || _.isString(v))
                 .validate('body.model', (v) => _.isUndefined(v) || _.isString(v))
-                .validate('body.image', (v) => _.isUndefined(v) || _.isString(v))
+                .validate('body.image', (v) => _.isUndefined(v) || _.isString(v) || (_.isArray(v) && v.every(_.isString)))
                 .validate('body.stream', _.isBoolean)
                 .validate('headers.authorization', _.isString);
 

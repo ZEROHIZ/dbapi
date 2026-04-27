@@ -537,6 +537,15 @@
                             全部重置
                         </button>
                     </div>
+                    <div class="mt-4 flex items-center justify-between p-4 bg-danger/5 rounded-2xl border border-danger/10">
+                        <div>
+                            <h4 class="font-bold text-sm">清理本地媒体文件</h4>
+                            <p class="text-[10px] text-slate-500">删除异步接口保存到 data/media 的图片、视频和任务记录。</p>
+                        </div>
+                        <button @click="clearLocalMedia" class="px-4 py-2 bg-danger text-white text-xs font-bold rounded-xl hover:bg-danger-dark transition-colors shadow-lg shadow-danger/20">
+                            清理媒体
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1501,6 +1510,16 @@
                         await fetch('/admin/reset-all', { method: 'POST', headers: getHeaders() });
                         fetchData();
                         showToast('全部重置', '系统内所有消耗计数已归零。', 'success');
+                    },
+                    clearLocalMedia: async () => {
+                        if(!confirm('确定要删除本地保存的图片、视频和异步任务记录吗？')) return;
+                        try {
+                            const res = await fetch('/admin/media/clear', { method: 'POST', headers: getHeaders() });
+                            if(!res.ok) throw new Error('Clear local media failed');
+                            showToast('清理完成', '本地图片、视频和任务记录已清理。', 'success');
+                        } catch(e) {
+                            showToast('清理失败', e.message, 'error');
+                        }
                     }
                 };
             }

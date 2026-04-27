@@ -7,6 +7,7 @@ import environment from "@/lib/environment.ts";
 import ResponsePolicyManager from "@/lib/response-policy.ts";
 import ModelManager from "@/lib/model-manager.ts";
 import TokenCounter from "@/lib/token-counter.ts";
+import mediaTaskManager from "@/lib/media-task-manager.ts";
 
 // 读取版本号
 const getVersion = async () => {
@@ -168,6 +169,10 @@ export default {
                 process.exit(0);
             }, 1000);
             return new SuccessfulBody({ message: "Restarting service..." });
+        }),
+        '/admin/media/clear': withAuth(async () => {
+            const paths = await mediaTaskManager.clearLocalMedia();
+            return new SuccessfulBody({ message: "Local media files cleared", paths });
         })
     },
     delete: {

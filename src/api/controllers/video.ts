@@ -34,6 +34,8 @@ interface AccountContext {
     userId: string;
 }
 
+type VideoReferenceImage = string | string[];
+
 // 最大重试次数
 const MAX_RETRY_COUNT = 0; // 调试阶段关闭重试，避免浪费额度
 // 重试延迟
@@ -358,7 +360,7 @@ async function pollForVideoResult(convId: string, context: AccountContext, timeo
  * @param account 账号信息
  */
 async function createVideoCompletion(
-    videoParams: { model: string; prompt: string; ratio: string; image?: string },
+    videoParams: { model: string; prompt: string; ratio: string; image?: VideoReferenceImage },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0,
@@ -369,18 +371,23 @@ async function createVideoCompletion(
         logger.info(`收到视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
         const context = normalizeAccount(account);
 
-        let attachments = [];
+        let attachments: any[] = [];
         if (image) {
             try {
-                const refImage = await images.uploadFile(image, context as any);
-                if (refImage && refImage.file_url?.url) {
-                    attachments = [{
-                        type: "image",
-                        key: refImage.file_url.url,
-                        extra: { refer_types: "overall" },
-                        identifier: util.uuid(),
-                    }];
-                    logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                const refImages = Array.isArray(image) ? image : [image];
+                const uploadResults = await Promise.all(
+                    refImages.map(img => images.uploadFile(img, context as any))
+                );
+                for (const refImage of uploadResults) {
+                    if (refImage && refImage.file_url?.url) {
+                        attachments.push({
+                            type: "image",
+                            key: refImage.file_url.url,
+                            extra: { refer_types: "overall" },
+                            identifier: util.uuid(),
+                        });
+                        logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                    }
                 }
             } catch (err: any) {
                 logger.error(`参考图上传失败：${err.message}`);
@@ -492,7 +499,7 @@ async function createVideoCompletion(
  * @param account 账号信息
  */
 async function createVideoCompletionStream(
-    videoParams: { model: string; prompt: string; ratio: string; image?: string },
+    videoParams: { model: string; prompt: string; ratio: string; image?: VideoReferenceImage },
     account: any,
     assistantId = DEFAULT_ASSISTANT_ID,
     retryCount = 0,
@@ -503,18 +510,23 @@ async function createVideoCompletionStream(
         logger.info(`收到流式视频生成请求：prompt=${prompt}, ratio=${ratio}, image=${!!image}`);
         const context = normalizeAccount(account);
 
-        let attachments = [];
+        let attachments: any[] = [];
         if (image) {
             try {
-                const refImage = await images.uploadFile(image, context as any);
-                if (refImage && refImage.file_url?.url) {
-                    attachments = [{
-                        type: "image",
-                        key: refImage.file_url.url,
-                        extra: { refer_types: "overall" },
-                        identifier: util.uuid(),
-                    }];
-                    logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                const refImages = Array.isArray(image) ? image : [image];
+                const uploadResults = await Promise.all(
+                    refImages.map(img => images.uploadFile(img, context as any))
+                );
+                for (const refImage of uploadResults) {
+                    if (refImage && refImage.file_url?.url) {
+                        attachments.push({
+                            type: "image",
+                            key: refImage.file_url.url,
+                            extra: { refer_types: "overall" },
+                            identifier: util.uuid(),
+                        });
+                        logger.info(`参考图上传成功：${refImage.file_url.url}`);
+                    }
                 }
             } catch (err: any) {
                 logger.error(`参考图上传失败：${err.message}`);
